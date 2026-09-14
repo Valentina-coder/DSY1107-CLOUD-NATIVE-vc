@@ -1,0 +1,28 @@
+# Environment files and credentials
+.env
+**/.env
+*.pem
+*.key
+*.p12
+*.jks
+
+# Node dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.firebase/
+
+# Java/Maven output
+target/
+**/target/
+
+# Local database files
+Backend/data/*.mv.db
+Backend/data/*.trace.db
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
