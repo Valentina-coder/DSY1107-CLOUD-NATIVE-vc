@@ -1,5 +1,5 @@
-# DSY1107-CLOUD-NATIVE-vc
-# DSY1107 - Cloud Native Project 
+
+# DSY1107 - Cloud Native Project Stock 360
 
 Este repositorio contiene una arquitectura unificada (**Stock360**) que integra un backend desarrollado en **Spring Boot** y un frontend moderno con **Vite**. Ambos entornos están configurados para coexistir en un mismo repositorio y ejecutarse en paralelo de forma eficiente.
 
@@ -12,20 +12,64 @@ La estructura actual del directorio principal se organiza de la siguiente manera
 ```text
 DSY1107-CLOUD-NATIVE-vc/
 │
-├── Backend/            <-- API Rest en Java con Spring Boot (Puerto: 8080)
-│   ├── src/
-│   └── pom.xml
+├── .firebase/                      <-- Cache y archivos temporales de Firebase CLI
+├── .env.example                    <-- Plantilla de variables de entorno del proyecto
+├── .firebaserc                     <-- Configuración de identificadores/proyectos en Firebase
+├── .gitignore                      <-- Exclusiones globales de Git para la raíz
+├── firebase.json                   <-- Configuración del despliegue en Firebase Hosting
+├── package.json                    <-- Script de automatización y orquestación de la raíz
+├── README.md                       <-- Documentación general del proyecto
 │
-├── frontend/           <-- Aplicación web SPA con Vite (Puerto: 5173)
+├── Backend/                        <-- API REST en Java con Spring Boot (Puerto: 8080)
+│   ├── .mvn/wrapper/               <-- Archivos para ejecutar Maven sin instalación previa
+│   │   └── maven-wrapper.properties
 │   ├── src/
-│   └── package.json
+│   │   ├── main/
+│   │   │   ├── java/com/example/Backend/
+│   │   │   │   ├── config/         <-- Configuraciones del servidor (Seguridad/CORS)
+│   │   │   │   │   └── SeguridadConfig.java
+│   │   │   │   ├── controller/     <-- Controladores REST (Endpoints para la API)
+│   │   │   │   │   ├── CategoriaController.java
+│   │   │   │   │   └── ProductoController.java
+│   │   │   │   ├── model/          <-- Entidades y modelos de datos (JPA/Hibernate)
+│   │   │   │   │   ├── Categoria.java
+│   │   │   │   │   └── Producto.java
+│   │   │   │   ├── repository/     <-- Capa de persistencia y consultas a BD (Spring Data JPA)
+│   │   │   │   │   ├── CategoriaRepository.java
+│   │   │   │   │   └── ProductoRepository.java
+│   │   │   │   └── BackendApplication.java <-- Punto de entrada de la aplicación Spring Boot
+│   │   │   └── resources/          <-- Recursos estáticos y archivos de propiedades
+│   │   │       ├── application.properties  <-- Configuración de BD, puertos y propiedades
+│   │   │       └── data.sql        <-- Script SQL con datos iniciales de prueba
+│   │   └── test/                   <-- Pruebas unitarias e integración del Backend
+│   │       └── java/com/example/Backend/
+│   │           └── BackendApplicationTests.java
+│   ├── .gitattributes
+│   ├── .gitignore
+│   ├── mvnw / mvnw.cmd             <-- Ejecutables Wrapper de Maven (Linux/macOS y Windows)
+│   └── pom.xml                     <-- Archivo de dependencias y plugins Maven
 │
-├── .gitignore          <-- Configuración para evitar subir dependencias pesadas
-└── package.json        <-- Script de automatización de la raíz
-```
-
----
-
+└── frontend/                       <-- Aplicación web SPA con React + Vite (Puerto: 5173)
+    ├── dist/                       <-- Build estático generado para producción
+    ├── public/                     <-- Recursos públicos globales (favicons, íconos)
+    ├── src/                        <-- Código fuente del cliente web
+    │   ├── assets/                 <-- Imágenes y vectores importados en React
+    │   ├── auth/                   <-- Configuración de autenticación del cliente
+    │   │   └── authConfig.js
+    │   ├── components/             <-- Componentes reutilizables de la UI
+    │   │   ├── BannerSeguridad.jsx
+    │   │   └── Navbar.jsx
+    │   ├── services/               <-- Módulos para peticiones HTTP al Backend
+    │   │   └── api.js
+    │   ├── App.css / App.jsx       <-- Componente principal de la interfaz y sus estilos
+    │   ├── index.css               <-- Estilos globales de la aplicación
+    │   └── main.jsx                <-- Punto de inicio de la app React
+    ├── .gitignore
+    ├── .oxlintrc.json              <-- Configuración de linter (Oxlint)
+    ├── index.html                  <-- Plantilla HTML base servida por Vite
+    ├── package.json                <-- Dependencias de npm y scripts del frontend
+    ├── README.md                   <-- Documentación específica del frontend
+    └── vite.config.js              <-- Configuración de compilación y servidor Vite
 ## 🚀 Pasos Realizados Hasta el Momento
 
 ### 1. Inicialización del Backend
