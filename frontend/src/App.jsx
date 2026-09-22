@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import api, { setAuthToken } from "./services/api";
 import { BannerSeguridad } from "./components/BannerSeguridad";
-import { loginRequest } from "./auth/authConfig";
+import { loginRequest, tokenRequest } from "./auth/authConfig";
 
 const CATEGORIAS_DEFAULT = [
   { id: 1, nombre: "Iluminación" },
@@ -22,12 +22,30 @@ export function App() {
   const [nuevaCategoria, setNuevaCategoria] = useState("");
   const [nuevoProducto, setNuevoProducto] = useState({ nombre: "", precio: "", categoriaId: "1" });
 
+  // Manejadores de Autenticación para MSAL
+  const handleLogin = async () => {
+    try {
+      await instance.loginPopup(loginRequest);
+    } catch (error) {
+      console.error("Error al iniciar sesión:", error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await instance.logoutPopup();
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
+
   useEffect(() => {
     const obtenerToken = async () => {
-      if (isAuthenticated) {
+      if (isAuthenticated && accounts.length > 0) {
         try {
+          // Solicitamos el token del Backend usando tokenRequest
           const response = await instance.acquireTokenSilent({
-            ...loginRequest,
+            ...tokenRequest,
             account: accounts[0],
           });
           const token = response.accessToken;
@@ -120,13 +138,13 @@ export function App() {
         <h1>Stock360</h1>
         {isAuthenticated ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span>{user?.name || user?.email}</span>
-            <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })} style={{ padding: "8px 16px", cursor: "pointer" }}>
+            <span>{user?.name || user?.username}</span>
+            <button onClick={handleLogout} style={{ padding: "8px 16px", cursor: "pointer" }}>
               Cerrar Sesión
             </button>
           </div>
         ) : (
-          <button onClick={() => loginWithRedirect()} style={{ padding: "8px 16px", cursor: "pointer" }}>
+          <button onClick={handleLogin} style={{ padding: "8px 16px", cursor: "pointer" }}>
             Iniciar Sesión
           </button>
         )}
