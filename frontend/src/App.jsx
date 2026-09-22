@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useAuth0 } from "@auth0/auth0-react";
+import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import api, { setAuthToken } from "./services/api";
 import { BannerSeguridad } from "./components/BannerSeguridad";
+import { loginRequest } from "./auth/authConfig";
 
 const CATEGORIAS_DEFAULT = [
   { id: 1, nombre: "Iluminación" },
@@ -10,7 +11,9 @@ const CATEGORIAS_DEFAULT = [
 ];
 
 export function App() {
-  const { loginWithRedirect, logout, isAuthenticated, user, getAccessTokenSilently } = useAuth0();
+  const { instance, accounts } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+  const user = accounts[0];
   
   const [categorias, setCategorias] = useState(CATEGORIAS_DEFAULT);
   const [productos, setProductos] = useState([]);
@@ -23,15 +26,22 @@ export function App() {
     const obtenerToken = async () => {
       if (isAuthenticated) {
         try {
-          const token = await getAccessTokenSilently();
+          const response = await instance.acquireTokenSilent({
+            ...loginRequest,
+            account: accounts[0],
+          });
+          const token = response.accessToken;
           setAuthToken(token);
         } catch (error) {
           console.error("Error obteniendo el token:", error);
+          setAuthToken(null);
         }
+      } else {
+        setAuthToken(null);
       }
     };
     obtenerToken();
-  }, [isAuthenticated, getAccessTokenSilently]);
+  }, [accounts, instance, isAuthenticated]);
 
   // 1. CONSULTAR CATEGORÍAS
   const cargarCategorias = async () => {
@@ -61,8 +71,6 @@ export function App() {
       setNuevaCategoria("");
       cargarCategorias();
     } catch (err) {
-      const nuevaLocal = { id: Date.now(), nombre: nuevaCategoria };
-      setCategorias((prev) => [...prev, nuevaLocal]);
       setLastStatus(err.response?.status || 500);
       setNuevaCategoria("");
     }
@@ -86,15 +94,6 @@ export function App() {
     e.preventDefault();
     if (!nuevoProducto.nombre || !nuevoProducto.precio || !nuevoProducto.categoriaId) return;
 
-    const catSeleccionada = categorias.find((c) => String(c.id) === String(nuevoProducto.categoriaId));
-    
-    const nuevoObjeto = {
-      id: Date.now(),
-      nombre: nuevoProducto.nombre,
-      precio: parseFloat(nuevoProducto.precio),
-      categoria: catSeleccionada || { id: nuevoProducto.categoriaId, nombre: "Sin Categoría" }
-    };
-
     try {
       const payload = {
         nombre: nuevoProducto.nombre,
@@ -106,8 +105,6 @@ export function App() {
       cargarProductos();
     } catch (err) {
       setLastStatus(err.response?.status || 500);
-      // Guardado en estado local ante falla del backend
-      setProductos((prev) => [...prev, nuevoObjeto]);
     }
 
     setNuevoProducto({ nombre: "", precio: "", categoriaId: categorias[0]?.id || "1" });

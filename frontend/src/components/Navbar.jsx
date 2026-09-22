@@ -1,18 +1,20 @@
-import { useAuth0 } from '@auth0/auth0-react';
+import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 
-export default function LoginButton() {
-  const { loginWithRedirect, logout, isAuthenticated, user } = useAuth0();
+export default function Navbar() {
+  const { instance, accounts } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+  const user = accounts[0];
 
   if (isAuthenticated) {
     return (
       <div>
-        <p>Bienvenido, {user.name}</p>
-        <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
+        <p>Bienvenido, {user?.name || user?.username}</p>
+        <button onClick={() => instance.logoutRedirect()}>
           Cerrar Sesión
         </button>
       </div>
     );
   }
 
-  return <button onClick={() => loginWithRedirect()}>Iniciar Sesión</button>;
+  return <button onClick={() => instance.loginRedirect()}>Iniciar Sesión</button>;
 }

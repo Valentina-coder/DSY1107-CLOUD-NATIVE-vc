@@ -13,7 +13,7 @@ export const msalConfig = {
 };
 
 export const loginRequest = {
-  scopes: ["User.Read", "api://STOCK360_BACKEND/recurso.read"],
+  scopes: [import.meta.env.VITE_API_SCOPE || "api://STOCK360_BACKEND/recurso.read"],
 };
 
 export const msalInstance = new PublicClientApplication(msalConfig);

@@ -1,18 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Auth0Provider } from '@auth0/auth0-react';
+import { MsalProvider } from '@azure/msal-react';
 import App from './App';
+import { msalInstance } from './auth/authConfig';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <Auth0Provider
-      domain="dev-mh13n.us.auth0.com"
-      clientId="Tq30nY20IofMYeKGiO7dg37iiLwBDhVR"
-      authorizationParams={{
-        redirect_uri: window.location.origin
-      }}
-    >
+    <MsalProvider instance={msalInstance}>
       <App />
-    </Auth0Provider>
+    </MsalProvider>
   </React.StrictMode>
 );

@@ -58,3 +58,11 @@ Mientras se configura el arranque global automatizado en la raíz, los proyectos
   cd frontend
   npm run dev
   ```
+
+## Configuración de Stock 360
+
+El frontend usa React + Vite y Microsoft Entra ID mediante MSAL. Copia `frontend/.env.example` a `frontend/.env.local` y configura el registro de aplicación, el scope expuesto por el backend y la URL pública de AWS API Gateway.
+
+El backend valida los JWT como OAuth2 Resource Server. En EC2 configura `AZURE_ISSUER_URI`, `AZURE_API_AUDIENCE`, `CORS_ALLOWED_ORIGINS` y las variables `SPRING_DATASOURCE_*` de la base PostgreSQL administrada. Para desarrollo, los valores por defecto usan H2 en memoria.
+
+> Firebase Authentication no es el mismo IDaaS que Microsoft Entra ID. Esta implementación sigue la especificación de la evaluación (Azure AD/Entra ID); no se deben mezclar tokens Firebase con el issuer de Entra.
