@@ -7,17 +7,15 @@ export const msalConfig = {
     redirectUri: window.location.origin,
   },
   cache: {
-    cacheLocation: "sessionStorage",
+    cacheLocation: "localStorage",
     storeAuthStateInCookie: false,
   },
 };
 
-// 1. Scopes básicos para que Microsoft permita el login sin errores
 export const loginRequest = {
   scopes: ["User.Read", "openid", "profile"],
 };
 
-// 2. Scope específico de tu Backend para obtener el token JWT
 export const tokenRequest = {
   scopes: [import.meta.env.VITE_API_SCOPE || "api://7505e446-c5fa-4bce-ad90-271d80380996/recurso.read"],
 };

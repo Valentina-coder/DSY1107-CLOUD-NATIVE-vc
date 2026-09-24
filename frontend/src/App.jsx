@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { useIsAuthenticated, useMsal } from "@azure/msal-react";
+import { useAuth0 } from "@auth0/auth0-react";
 import api, { setAuthToken } from "./services/api";
 import { BannerSeguridad } from "./components/BannerSeguridad";
-import { loginRequest, tokenRequest } from "./auth/authConfig";
 
 const CATEGORIAS_DEFAULT = [
   { id: 1, nombre: "Iluminación" },
@@ -11,57 +10,60 @@ const CATEGORIAS_DEFAULT = [
 ];
 
 export function App() {
-  const { instance, accounts } = useMsal();
-  const isAuthenticated = useIsAuthenticated();
-  const user = accounts[0];
-  
+  const { isAuthenticated, user, loginWithPopup, logout, getAccessTokenSilently, isLoading } = useAuth0();
+
   const [categorias, setCategorias] = useState(CATEGORIAS_DEFAULT);
   const [productos, setProductos] = useState([]);
   const [lastStatus, setLastStatus] = useState(null);
-  
+
+  // Estados de formularios
   const [nuevaCategoria, setNuevaCategoria] = useState("");
   const [nuevoProducto, setNuevoProducto] = useState({ nombre: "", precio: "", categoriaId: "1" });
+  
+  // Estado para la edición de producto
+  const [productoEditando, setProductoEditando] = useState(null);
 
-  // Manejadores de Autenticación para MSAL
+  // Helper para asegurar token en llamadas protegidas
+  const getTokenHeaders = async () => {
+    try {
+      const token = await getAccessTokenSilently();
+      setAuthToken(token);
+      return { headers: { Authorization: `Bearer ${token}` } };
+    } catch (e) {
+      console.error("Error al obtener token silencioso:", e);
+      return {};
+    }
+  };
+
+  // Sincronizar Token al iniciar sesión
+  useEffect(() => {
+    const sincronizarToken = async () => {
+      if (isAuthenticated) {
+        await getTokenHeaders();
+      } else {
+        setAuthToken(null);
+      }
+    };
+    sincronizarToken();
+  }, [isAuthenticated]);
+
   const handleLogin = async () => {
     try {
-      await instance.loginPopup(loginRequest);
+      await loginWithPopup();
     } catch (error) {
       console.error("Error al iniciar sesión:", error);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await instance.logoutPopup();
-    } catch (error) {
-      console.error("Error al cerrar sesión:", error);
-    }
+  const handleLogout = () => {
+    setAuthToken(null);
+    setProductos([]);
+    logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
-  useEffect(() => {
-    const obtenerToken = async () => {
-      if (isAuthenticated && accounts.length > 0) {
-        try {
-          // Solicitamos el token del Backend usando tokenRequest
-          const response = await instance.acquireTokenSilent({
-            ...tokenRequest,
-            account: accounts[0],
-          });
-          const token = response.accessToken;
-          setAuthToken(token);
-        } catch (error) {
-          console.error("Error obteniendo el token:", error);
-          setAuthToken(null);
-        }
-      } else {
-        setAuthToken(null);
-      }
-    };
-    obtenerToken();
-  }, [accounts, instance, isAuthenticated]);
-
-  // 1. CONSULTAR CATEGORÍAS
+  // -------------------------------------------------------------
+  // 1. OPERACIONES DE CATEGORÍAS
+  // -------------------------------------------------------------
   const cargarCategorias = async () => {
     try {
       const res = await api.get("/api/public/categorias");
@@ -77,28 +79,32 @@ export function App() {
     }
   };
 
-  // 2. CREAR CATEGORÍA
   const crearCategoria = async (e) => {
     e.preventDefault();
     if (!nuevaCategoria.trim()) return;
 
     try {
+      const authConfig = await getTokenHeaders();
       const payload = { nombre: nuevaCategoria };
-      const res = await api.post("/api/admin/categorias", payload);
+      const res = await api.post("/api/admin/categorias", payload, authConfig);
       setLastStatus(res.status);
       setNuevaCategoria("");
       cargarCategorias();
     } catch (err) {
       setLastStatus(err.response?.status || 500);
-      setNuevaCategoria("");
     }
   };
 
-  // 3. CONSULTAR PRODUCTOS
+  // -------------------------------------------------------------
+  // 2. OPERACIONES DE PRODUCTOS (CRUD COMPLETO)
+  // -------------------------------------------------------------
+  
+  // GET: Consultar Productos
   const cargarProductos = async () => {
     try {
-      const res = await api.get("/api/productos");
-      if (Array.isArray(res.data) && res.data.length > 0) {
+      const authConfig = await getTokenHeaders();
+      const res = await api.get("/api/productos", authConfig);
+      if (Array.isArray(res.data)) {
         setProductos(res.data);
       }
       setLastStatus(res.status);
@@ -107,30 +113,79 @@ export function App() {
     }
   };
 
-  // 4. CREAR PRODUCTO
+  // POST: Crear Producto
   const crearProducto = async (e) => {
     e.preventDefault();
     if (!nuevoProducto.nombre || !nuevoProducto.precio || !nuevoProducto.categoriaId) return;
 
     try {
+      const authConfig = await getTokenHeaders();
       const payload = {
         nombre: nuevoProducto.nombre,
         precio: parseFloat(nuevoProducto.precio),
         categoria: { id: parseInt(nuevoProducto.categoriaId) }
       };
-      const res = await api.post("/api/admin/productos", payload);
+      const res = await api.post("/api/admin/productos", payload, authConfig);
+      setLastStatus(res.status);
+      setNuevoProducto({ nombre: "", precio: "", categoriaId: categorias[0]?.id ? String(categorias[0].id) : "1" });
+      cargarProductos();
+    } catch (err) {
+      setLastStatus(err.response?.status || 500);
+    }
+  };
+
+  // PUT: Actualizar Producto
+  const actualizarProducto = async (e) => {
+    e.preventDefault();
+    if (!productoEditando) return;
+
+    try {
+      const authConfig = await getTokenHeaders();
+      const payload = {
+        nombre: productoEditando.nombre,
+        precio: parseFloat(productoEditando.precio),
+        categoria: { id: parseInt(productoEditando.categoriaId) }
+      };
+      const res = await api.put(`/api/admin/productos/${productoEditando.id}`, payload, authConfig);
+      setLastStatus(res.status);
+      setProductoEditando(null);
+      cargarProductos();
+    } catch (err) {
+      setLastStatus(err.response?.status || 500);
+    }
+  };
+
+  // DELETE: Eliminar Producto
+  const eliminarProducto = async (id) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este producto?")) return;
+
+    try {
+      const authConfig = await getTokenHeaders();
+      const res = await api.delete(`/api/admin/productos/${id}`, authConfig);
       setLastStatus(res.status);
       cargarProductos();
     } catch (err) {
       setLastStatus(err.response?.status || 500);
     }
+  };
 
-    setNuevoProducto({ nombre: "", precio: "", categoriaId: categorias[0]?.id || "1" });
+  // Iniciar la edición de un producto existente
+  const prepararEdicion = (prod) => {
+    setProductoEditando({
+      id: prod.id,
+      nombre: prod.nombre,
+      precio: prod.precio,
+      categoriaId: prod.categoria?.id ? String(prod.categoria.id) : "1"
+    });
   };
 
   useEffect(() => {
     cargarCategorias();
   }, []);
+
+  if (isLoading) {
+    return <div style={{ padding: "40px", textAlign: "center" }}>Cargando estado de autenticación...</div>;
+  }
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", fontFamily: "Segoe UI, sans-serif" }}>
@@ -138,7 +193,7 @@ export function App() {
         <h1>Stock360</h1>
         {isAuthenticated ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span>{user?.name || user?.username}</span>
+            <span>{user?.name || user?.email}</span>
             <button onClick={handleLogout} style={{ padding: "8px 16px", cursor: "pointer" }}>
               Cerrar Sesión
             </button>
@@ -181,20 +236,77 @@ export function App() {
         )}
       </section>
 
-      {/* 2. SECCIÓN PRODUCTOS */}
+      {/* 2. SECCIÓN PRODUCTOS & EDICIÓN */}
       <section style={{ marginBottom: "24px", background: "#f8fafc", padding: "16px", borderRadius: "8px" }}>
-        <h2>2. Productos (Lectura Protegida)</h2>
+        <h2>2. Productos (Lectura y Gestión)</h2>
         <button onClick={cargarProductos} style={{ padding: "8px 16px", marginBottom: "12px", cursor: "pointer" }}>
           Consultar Productos
         </button>
         
+        {/* Formulario de Edición de Producto Modal / Inline */}
+        {productoEditando && (
+          <div style={{ background: "#e2e8f0", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
+            <h3 style={{ marginTop: 0 }}>Editar Producto (ID: {productoEditando.id})</h3>
+            <form onSubmit={actualizarProducto} style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <input 
+                placeholder="Nombre" 
+                value={productoEditando.nombre}
+                onChange={(e) => setProductoEditando({ ...productoEditando, nombre: e.target.value })} 
+                required 
+                style={{ padding: "6px", flex: "1 1 150px" }}
+              />
+              <input 
+                placeholder="Precio" 
+                type="number"
+                value={productoEditando.precio}
+                onChange={(e) => setProductoEditando({ ...productoEditando, precio: e.target.value })} 
+                required 
+                style={{ padding: "6px", width: "100px" }}
+              />
+              <select 
+                value={productoEditando.categoriaId}
+                onChange={(e) => setProductoEditando({ ...productoEditando, categoriaId: e.target.value })} 
+                style={{ padding: "6px" }}
+              >
+                {categorias.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+              <button type="submit" style={{ padding: "6px 12px", background: "#d97706", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+                Guardar Cambios
+              </button>
+              <button type="button" onClick={() => setProductoEditando(null)} style={{ padding: "6px 12px", background: "#64748b", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+                Cancelar
+              </button>
+            </form>
+          </div>
+        )}
+
         {productos.length === 0 ? (
           <p style={{ color: "#64748b" }}>Presiona "Consultar Productos" para listar el inventario.</p>
         ) : (
-          <ul style={{ marginTop: "12px" }}>
+          <ul style={{ marginTop: "12px", paddingLeft: 0, listStyle: "none" }}>
             {productos.map((p) => (
-              <li key={p.id} style={{ marginBottom: "6px" }}>
-                <strong>{p.nombre}</strong> — ${p.precio} | <em>Categoría: {p.categoria?.nombre || "N/A"}</em>
+              <li key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+                <div>
+                  <strong>{p.nombre}</strong> — ${p.precio} | <em>Categoría: {p.categoria?.nombre || "N/A"}</em>
+                </div>
+                {isAuthenticated && (
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button 
+                      onClick={() => prepararEdicion(p)} 
+                      style={{ padding: "4px 8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                    >
+                      Editar
+                    </button>
+                    <button 
+                      onClick={() => eliminarProducto(p.id)} 
+                      style={{ padding: "4px 8px", background: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

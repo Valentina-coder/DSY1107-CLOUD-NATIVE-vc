@@ -1,6 +1,6 @@
 import React from 'react';
 import { useIsAuthenticated, useMsal } from '@azure/msal-react';
-import { loginRequest } from '../auth/authConfig'; // Importación requerida para enviar los scopes
+import { loginRequest } from '../auth/authConfig';
 
 export default function Navbar() {
   const { instance, accounts } = useMsal();
@@ -9,7 +9,6 @@ export default function Navbar() {
 
   const handleLogin = async () => {
     try {
-      // Se pasa loginRequest para solicitar los scopes del backend
       await instance.loginPopup(loginRequest);
     } catch (error) {
       console.error("Error al iniciar sesión:", error);
@@ -18,7 +17,9 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     try {
-      await instance.logoutPopup();
+      await instance.logoutPopup({
+        postLogoutRedirectUri: `${window.location.origin}/blank.html`,
+      });
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
     }

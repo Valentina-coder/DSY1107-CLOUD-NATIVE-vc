@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import org.springframework.beans.factory.annotation.Value;
 
+
 @Configuration
 public class SeguridadConfig {
 
@@ -78,22 +79,33 @@ public class SeguridadConfig {
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator));
         return decoder;
     }
-
     @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            Collection<GrantedAuthority> authorities = new ArrayList<>();
-            scopes.convert(jwt).forEach(authority -> authorities.add(new SimpleGrantedAuthority(authority.getAuthority())));
-            Object roles = jwt.getClaims().get("roles");
-            if (roles instanceof Collection<?> roleClaims) {
-                roleClaims.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
-            }
-            return authorities;
-        });
-        return converter;
-    }
+        public JwtAuthenticationConverter jwtAuthenticationConverter() {
+            JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
+            JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+            
+            converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+                Collection<GrantedAuthority> authorities = new ArrayList<>();
+                
+                // Extrae scopes estándar (read, write, etc.)
+                scopes.convert(jwt).forEach(authority -> authorities.add(new SimpleGrantedAuthority(authority.getAuthority())));
+                
+                // Extrae permisos asignados desde Auth0 (claim "permissions")
+                Object permissions = jwt.getClaims().get("permissions");
+                if (permissions instanceof Collection<?> permList) {
+                    permList.forEach(perm -> authorities.add(new SimpleGrantedAuthority(perm.toString())));
+                }
+
+                // Extrae roles personalizados (si usas un claim de roles)
+                Object roles = jwt.getClaims().get("roles");
+                if (roles instanceof Collection<?> roleClaims) {
+                    roleClaims.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+                }
+                
+                return authorities;
+            });
+            return converter;
+        }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -106,4 +118,5 @@ public class SeguridadConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
+
 }

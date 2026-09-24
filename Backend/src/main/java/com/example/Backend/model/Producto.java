@@ -1,29 +1,30 @@
 package com.example.Backend.model;
+
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import lombok.*;
 
 @Entity
 @Table(name = "productos")
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor
 public class Producto {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
-    @Column(nullable = false)
     private String nombre;
-
-    @NotNull
-    @Min(0)
     private Double precio;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "categoria_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "categoria_id")
     private Categoria categoria;
+
+    public Producto() {}
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getNombre() { return nombre; }
+    public void setNombre(String nombre) { this.nombre = nombre; }
+    public Double getPrecio() { return precio; }
+    public void setPrecio(Double precio) { this.precio = precio; }
+    public Categoria getCategoria() { return categoria; }
+    public void setCategoria(Categoria categoria) { this.categoria = categoria; }
 }
