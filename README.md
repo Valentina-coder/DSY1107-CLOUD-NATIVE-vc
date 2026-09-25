@@ -2,6 +2,73 @@
 
 Stock360 es una aplicación web (Single Page Application) diseñada para administrar un inventario de productos y categorías. Cuenta con un sistema de acceso público para consultar categorías y un panel de administración protegido mediante autenticación para realizar operaciones CRUD (Crear, Leer, Actualizar, Eliminar) sobre los productos.
 
+## 🛠️ Estructura del Proyecto
+
+La estructura actual del directorio principal se organiza de la siguiente manera:
+
+``text
+DSY1107-CLOUD-NATIVE-vc/
+│
+├── .firebase/                      <-- Cache y archivos temporales de Firebase CLI
+├── .env.example                    <-- Plantilla de variables de entorno del proyecto
+├── .firebaserc                     <-- Configuración de identificadores/proyectos en Firebase
+├── .gitignore                      <-- Exclusiones globales de Git para la raíz
+├── firebase.json                   <-- Configuración del despliegue en Firebase Hosting
+├── package.json                    <-- Script de automatización y orquestación de la raíz
+├── README.md                       <-- Documentación general del proyecto
+│
+├── Backend/                        <-- API REST en Java con Spring Boot (Puerto: 8080)
+│   ├── .mvn/wrapper/               <-- Archivos para ejecutar Maven sin instalación previa
+│   │   └── maven-wrapper.properties
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/example/Backend/
+│   │   │   │   ├── config/         <-- Configuraciones del servidor (Seguridad/CORS)
+│   │   │   │   │   └── SeguridadConfig.java
+│   │   │   │   ├── controller/     <-- Controladores REST (Endpoints para la API)
+│   │   │   │   │   ├── CategoriaController.java
+│   │   │   │   │   └── ProductoController.java
+│   │   │   │   ├── model/          <-- Entidades y modelos de datos (JPA/Hibernate)
+│   │   │   │   │   ├── Categoria.java
+│   │   │   │   │   └── Producto.java
+│   │   │   │   ├── repository/     <-- Capa de persistencia y consultas a BD (Spring Data JPA)
+│   │   │   │   │   ├── CategoriaRepository.java
+│   │   │   │   │   └── ProductoRepository.java
+│   │   │   │   └── BackendApplication.java <-- Punto de entrada de la aplicación Spring Boot
+│   │   │   └── resources/          <-- Recursos estáticos y archivos de propiedades
+│   │   │       ├── application.properties  <-- Configuración de BD, puertos y propiedades
+│   │   │       └── data.sql        <-- Script SQL con datos iniciales de prueba
+│   │   └── test/                   <-- Pruebas unitarias e integración del Backend
+│   │       └── java/com/example/Backend/
+│   │           └── BackendApplicationTests.java
+│   ├── .gitattributes
+│   ├── .gitignore
+│   ├── mvnw / mvnw.cmd             <-- Ejecutables Wrapper de Maven (Linux/macOS y Windows)
+│   └── pom.xml                     <-- Archivo de dependencias y plugins Maven
+│
+└── frontend/                       <-- Aplicación web SPA con React + Vite (Puerto: 5173)
+    ├── dist/                       <-- Build estático generado para producción
+    ├── public/                     <-- Recursos públicos globales (favicons, íconos)
+    ├── src/                        <-- Código fuente del cliente web
+    │   ├── assets/                 <-- Imágenes y vectores importados en React
+    │   ├── auth/                   <-- Configuración de autenticación del cliente
+    │   │   └── authConfig.js
+    │   ├── components/             <-- Componentes reutilizables de la UI
+    │   │   ├── BannerSeguridad.jsx
+    │   │   └── Navbar.jsx
+    │   ├── services/               <-- Módulos para peticiones HTTP al Backend
+    │   │   └── api.js
+    │   ├── App.css / App.jsx       <-- Componente principal de la interfaz y sus estilos
+    │   ├── index.css               <-- Estilos globales de la aplicación
+    │   └── main.jsx                <-- Punto de inicio de la app React
+    ├── .gitignore
+    ├── .oxlintrc.json              <-- Configuración de linter (Oxlint)
+    ├── index.html                  <-- Plantilla HTML base servida por Vite
+    ├── package.json                <-- Dependencias de npm y scripts del frontend
+    ├── README.md                   <-- Documentación específica del frontend
+    └── vite.config.js              <-- Configuración de compilación y servidor Vite
+## 🚀 Pasos Realizados Hasta el Momento
+
 ## 🚀 Tecnologías Utilizadas
 
 **Frontend:**
