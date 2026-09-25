@@ -6,7 +6,7 @@ Stock360 es una aplicación web (Single Page Application) diseñada para adminis
 
 La estructura actual del directorio principal se organiza de la siguiente manera:
 
-``text
+```text
 DSY1107-CLOUD-NATIVE-vc/
 │
 ├── .firebase/                      <-- Cache y archivos temporales de Firebase CLI
