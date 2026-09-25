@@ -9,6 +9,9 @@ const CATEGORIAS_DEFAULT = [
   { id: 3, nombre: "Electrónica" }
 ];
 
+// Reemplaza esto con el Identificador exacto registrado en Auth0 API
+const AUDIENCE_API = "https://stock360-api";
+
 export function App() {
   const { isAuthenticated, user, loginWithPopup, logout, getAccessTokenSilently, isLoading } = useAuth0();
 
@@ -19,18 +22,22 @@ export function App() {
   // Estados de formularios
   const [nuevaCategoria, setNuevaCategoria] = useState("");
   const [nuevoProducto, setNuevoProducto] = useState({ nombre: "", precio: "", categoriaId: "1" });
-  
+
   // Estado para la edición de producto
   const [productoEditando, setProductoEditando] = useState(null);
 
-  // Helper para asegurar token en llamadas protegidas
+  // Helper para asegurar token JWT legítimo en llamadas protegidas
   const getTokenHeaders = async () => {
     try {
-      const token = await getAccessTokenSilently();
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: AUDIENCE_API
+        }
+      });
       setAuthToken(token);
       return { headers: { Authorization: `Bearer ${token}` } };
     } catch (e) {
-      console.error("Error al obtener token silencioso:", e);
+      console.error("Error al obtener JWT desde Auth0:", e);
       return {};
     }
   };
@@ -74,6 +81,7 @@ export function App() {
       }
       setLastStatus(res.status);
     } catch (err) {
+      console.error("Error cargando categorías:", err.response || err);
       setLastStatus(err.response?.status || 500);
       setCategorias(CATEGORIAS_DEFAULT);
     }
@@ -85,12 +93,13 @@ export function App() {
 
     try {
       const authConfig = await getTokenHeaders();
-      const payload = { nombre: nuevaCategoria };
+      const payload = { nombre: nuevaCategoria.trim() };
       const res = await api.post("/api/admin/categorias", payload, authConfig);
       setLastStatus(res.status);
       setNuevaCategoria("");
       cargarCategorias();
     } catch (err) {
+      console.error("Error creando categoría:", err.response || err);
       setLastStatus(err.response?.status || 500);
     }
   };
@@ -98,7 +107,7 @@ export function App() {
   // -------------------------------------------------------------
   // 2. OPERACIONES DE PRODUCTOS (CRUD COMPLETO)
   // -------------------------------------------------------------
-  
+
   // GET: Consultar Productos
   const cargarProductos = async () => {
     try {
@@ -109,6 +118,7 @@ export function App() {
       }
       setLastStatus(res.status);
     } catch (err) {
+      console.error("Error cargando productos:", err.response || err);
       setLastStatus(err.response?.status || 500);
     }
   };
@@ -116,20 +126,29 @@ export function App() {
   // POST: Crear Producto
   const crearProducto = async (e) => {
     e.preventDefault();
-    if (!nuevoProducto.nombre || !nuevoProducto.precio || !nuevoProducto.categoriaId) return;
+    const catId = parseInt(nuevoProducto.categoriaId, 10);
+    if (!nuevoProducto.nombre || !nuevoProducto.precio || isNaN(catId)) {
+      alert("Por favor completa todos los campos correctamente.");
+      return;
+    }
 
     try {
       const authConfig = await getTokenHeaders();
       const payload = {
         nombre: nuevoProducto.nombre,
         precio: parseFloat(nuevoProducto.precio),
-        categoria: { id: parseInt(nuevoProducto.categoriaId) }
+        categoria: { id: catId }
       };
       const res = await api.post("/api/admin/productos", payload, authConfig);
       setLastStatus(res.status);
-      setNuevoProducto({ nombre: "", precio: "", categoriaId: categorias[0]?.id ? String(categorias[0].id) : "1" });
+      setNuevoProducto({
+        nombre: "",
+        precio: "",
+        categoriaId: categorias[0]?.id ? String(categorias[0].id) : "1"
+      });
       cargarProductos();
     } catch (err) {
+      console.error("Error creando producto:", err.response || err);
       setLastStatus(err.response?.status || 500);
     }
   };
@@ -139,18 +158,20 @@ export function App() {
     e.preventDefault();
     if (!productoEditando) return;
 
+    const catId = parseInt(productoEditando.categoriaId, 10);
     try {
       const authConfig = await getTokenHeaders();
       const payload = {
         nombre: productoEditando.nombre,
         precio: parseFloat(productoEditando.precio),
-        categoria: { id: parseInt(productoEditando.categoriaId) }
+        categoria: { id: catId }
       };
       const res = await api.put(`/api/admin/productos/${productoEditando.id}`, payload, authConfig);
       setLastStatus(res.status);
       setProductoEditando(null);
       cargarProductos();
     } catch (err) {
+      console.error("Error actualizando producto:", err.response || err);
       setLastStatus(err.response?.status || 500);
     }
   };
@@ -165,6 +186,7 @@ export function App() {
       setLastStatus(res.status);
       cargarProductos();
     } catch (err) {
+      console.error("Error eliminando producto:", err.response || err);
       setLastStatus(err.response?.status || 500);
     }
   };
@@ -213,23 +235,35 @@ export function App() {
         <button onClick={cargarCategorias} style={{ padding: "8px 16px", marginBottom: "12px", cursor: "pointer" }}>
           Consultar Categorías
         </button>
-        
+
         <ul>
           {categorias.map((c) => (
-            <li key={c.id}><strong>ID {c.id}:</strong> {c.nombre}</li>
+            <li key={c.id}>
+              <strong>ID {c.id}:</strong> {c.nombre}
+            </li>
           ))}
         </ul>
 
         {isAuthenticated && (
           <form onSubmit={crearCategoria} style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-            <input 
-              placeholder="Nueva Categoría (ej: Herramientas)" 
+            <input
+              placeholder="Nueva Categoría (ej: Herramientas)"
               value={nuevaCategoria}
-              onChange={(e) => setNuevaCategoria(e.target.value)} 
-              required 
+              onChange={(e) => setNuevaCategoria(e.target.value)}
+              required
               style={{ padding: "8px", flex: 1 }}
             />
-            <button type="submit" style={{ padding: "8px 16px", background: "#10b981", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+            <button
+              type="submit"
+              style={{
+                padding: "8px 16px",
+                background: "#10b981",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer"
+              }}
+            >
               + Crear Categoría
             </button>
           </form>
@@ -242,40 +276,64 @@ export function App() {
         <button onClick={cargarProductos} style={{ padding: "8px 16px", marginBottom: "12px", cursor: "pointer" }}>
           Consultar Productos
         </button>
-        
-        {/* Formulario de Edición de Producto Modal / Inline */}
+
+        {/* Formulario de Edición de Producto */}
         {productoEditando && (
           <div style={{ background: "#e2e8f0", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
             <h3 style={{ marginTop: 0 }}>Editar Producto (ID: {productoEditando.id})</h3>
             <form onSubmit={actualizarProducto} style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <input 
-                placeholder="Nombre" 
+              <input
+                placeholder="Nombre"
                 value={productoEditando.nombre}
-                onChange={(e) => setProductoEditando({ ...productoEditando, nombre: e.target.value })} 
-                required 
+                onChange={(e) => setProductoEditando({ ...productoEditando, nombre: e.target.value })}
+                required
                 style={{ padding: "6px", flex: "1 1 150px" }}
               />
-              <input 
-                placeholder="Precio" 
+              <input
+                placeholder="Precio"
                 type="number"
+                step="0.01"
                 value={productoEditando.precio}
-                onChange={(e) => setProductoEditando({ ...productoEditando, precio: e.target.value })} 
-                required 
+                onChange={(e) => setProductoEditando({ ...productoEditando, precio: e.target.value })}
+                required
                 style={{ padding: "6px", width: "100px" }}
               />
-              <select 
+              <select
                 value={productoEditando.categoriaId}
-                onChange={(e) => setProductoEditando({ ...productoEditando, categoriaId: e.target.value })} 
+                onChange={(e) => setProductoEditando({ ...productoEditando, categoriaId: e.target.value })}
                 style={{ padding: "6px" }}
               >
                 {categorias.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
                 ))}
               </select>
-              <button type="submit" style={{ padding: "6px 12px", background: "#d97706", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+              <button
+                type="submit"
+                style={{
+                  padding: "6px 12px",
+                  background: "#d97706",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
                 Guardar Cambios
               </button>
-              <button type="button" onClick={() => setProductoEditando(null)} style={{ padding: "6px 12px", background: "#64748b", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => setProductoEditando(null)}
+                style={{
+                  padding: "6px 12px",
+                  background: "#64748b",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
                 Cancelar
               </button>
             </form>
@@ -287,21 +345,46 @@ export function App() {
         ) : (
           <ul style={{ marginTop: "12px", paddingLeft: 0, listStyle: "none" }}>
             {productos.map((p) => (
-              <li key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+              <li
+                key={p.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 0",
+                  borderBottom: "1px solid #e2e8f0"
+                }}
+              >
                 <div>
                   <strong>{p.nombre}</strong> — ${p.precio} | <em>Categoría: {p.categoria?.nombre || "N/A"}</em>
                 </div>
                 {isAuthenticated && (
                   <div style={{ display: "flex", gap: "6px" }}>
-                    <button 
-                      onClick={() => prepararEdicion(p)} 
-                      style={{ padding: "4px 8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                    <button
+                      onClick={() => prepararEdicion(p)}
+                      style={{
+                        padding: "4px 8px",
+                        background: "#f59e0b",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "12px"
+                      }}
                     >
                       Editar
                     </button>
-                    <button 
-                      onClick={() => eliminarProducto(p.id)} 
-                      style={{ padding: "4px 8px", background: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                    <button
+                      onClick={() => eliminarProducto(p.id)}
+                      style={{
+                        padding: "4px 8px",
+                        background: "#ef4444",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "12px"
+                      }}
                     >
                       Eliminar
                     </button>
@@ -318,35 +401,48 @@ export function App() {
         <section style={{ background: "#f8fafc", padding: "16px", borderRadius: "8px" }}>
           <h2>3. Crear Producto (Escritura Admin)</h2>
           <form onSubmit={crearProducto} style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "400px" }}>
-            <input 
-              placeholder="Nombre del Producto" 
+            <input
+              placeholder="Nombre del Producto"
               value={nuevoProducto.nombre}
-              onChange={(e) => setNuevoProducto({ ...nuevoProducto, nombre: e.target.value })} 
-              required 
+              onChange={(e) => setNuevoProducto({ ...nuevoProducto, nombre: e.target.value })}
+              required
               style={{ padding: "8px" }}
             />
-            <input 
-              placeholder="Precio" 
-              type="number" 
+            <input
+              placeholder="Precio"
+              type="number"
+              step="0.01"
               value={nuevoProducto.precio}
-              onChange={(e) => setNuevoProducto({ ...nuevoProducto, precio: e.target.value })} 
-              required 
+              onChange={(e) => setNuevoProducto({ ...nuevoProducto, precio: e.target.value })}
+              required
               style={{ padding: "8px" }}
             />
-            
-            <select 
+
+            <select
               value={nuevoProducto.categoriaId}
-              onChange={(e) => setNuevoProducto({ ...nuevoProducto, categoriaId: e.target.value })} 
+              onChange={(e) => setNuevoProducto({ ...nuevoProducto, categoriaId: e.target.value })}
               required
               style={{ padding: "8px" }}
             >
               <option value="">Seleccione Categoría</option>
               {categorias.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
               ))}
             </select>
 
-            <button type="submit" style={{ padding: "10px", background: "#2563eb", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+            <button
+              type="submit"
+              style={{
+                padding: "10px",
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer"
+              }}
+            >
               Guardar en Inventario
             </button>
           </form>

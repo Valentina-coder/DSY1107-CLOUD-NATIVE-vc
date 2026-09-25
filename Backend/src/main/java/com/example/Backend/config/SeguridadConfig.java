@@ -2,6 +2,7 @@ package com.example.Backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod; // <--- AGREGAR ESTA IMPORTACIÓN
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -38,12 +39,14 @@ public class SeguridadConfig {
     @Value("${spring.security.oauth2.resourceserver.jwt.audiences}")
     private String audience;
 
-	@Bean
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
+                // PERMITIR PETICIONES PREFLIGHT CORS (OPTIONS) SIN AUTENTICACIÓN
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() 
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/admin/**").hasAnyAuthority("SCOPE_recurso.write", "ROLE_ADMIN")
                 .requestMatchers("/api/**").authenticated()
@@ -79,44 +82,42 @@ public class SeguridadConfig {
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator));
         return decoder;
     }
-    @Bean
-        public JwtAuthenticationConverter jwtAuthenticationConverter() {
-            JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
-            JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-            
-            converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-                Collection<GrantedAuthority> authorities = new ArrayList<>();
-                
-                // Extrae scopes estándar (read, write, etc.)
-                scopes.convert(jwt).forEach(authority -> authorities.add(new SimpleGrantedAuthority(authority.getAuthority())));
-                
-                // Extrae permisos asignados desde Auth0 (claim "permissions")
-                Object permissions = jwt.getClaims().get("permissions");
-                if (permissions instanceof Collection<?> permList) {
-                    permList.forEach(perm -> authorities.add(new SimpleGrantedAuthority(perm.toString())));
-                }
 
-                // Extrae roles personalizados (si usas un claim de roles)
-                Object roles = jwt.getClaims().get("roles");
-                if (roles instanceof Collection<?> roleClaims) {
-                    roleClaims.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
-                }
-                
-                return authorities;
-            });
-            return converter;
-        }
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            Collection<GrantedAuthority> authorities = new ArrayList<>();
+            
+            scopes.convert(jwt).forEach(authority -> authorities.add(new SimpleGrantedAuthority(authority.getAuthority())));
+            
+            Object permissions = jwt.getClaims().get("permissions");
+            if (permissions instanceof Collection<?> permList) {
+                permList.forEach(perm -> authorities.add(new SimpleGrantedAuthority(perm.toString())));
+            }
+
+            Object roles = jwt.getClaims().get("roles");
+            if (roles instanceof Collection<?> roleClaims) {
+                roleClaims.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+            }
+            
+            return authorities;
+        });
+        return converter;
+    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept"));
+        config.setAllowCredentials(true);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
     }
-
 }
