@@ -1,6 +1,11 @@
-INSERT INTO categorias (id, nombre) VALUES (1, 'Iluminación');
-INSERT INTO categorias (id, nombre) VALUES (2, 'Hogar y Muebles');
-INSERT INTO categorias (id, nombre) VALUES (3, 'Electrónica');
+INSERT INTO categorias (nombre)
+SELECT 'Iluminación'
+WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE nombre = 'Iluminación');
 
--- Ajustar la secuencia del auto-incremento para que el próximo ID sea 4
-ALTER TABLE categorias ALTER COLUMN id RESTART WITH 4;
+INSERT INTO categorias (nombre)
+SELECT 'Hogar y Muebles'
+WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE nombre = 'Hogar y Muebles');
+
+INSERT INTO categorias (nombre)
+SELECT 'Electrónica'
+WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE nombre = 'Electrónica');

@@ -48,7 +48,11 @@ public class SeguridadConfig {
                 // PERMITIR PETICIONES PREFLIGHT CORS (OPTIONS) SIN AUTENTICACIÓN
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() 
                 .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/admin/**").hasAnyAuthority("SCOPE_recurso.write", "ROLE_ADMIN")
+                .requestMatchers("/api/admin/**").hasAnyAuthority(
+                    "SCOPE_recurso:write", "recurso:write",
+                    "SCOPE_recurso.write", "recurso.write",
+                    "SCOPE_producto:write", "producto:write",
+                    "ROLE_ADMIN")
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().denyAll()
             )
@@ -90,19 +94,33 @@ public class SeguridadConfig {
         
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             Collection<GrantedAuthority> authorities = new ArrayList<>();
-            
-            scopes.convert(jwt).forEach(authority -> authorities.add(new SimpleGrantedAuthority(authority.getAuthority())));
-            
+
+            scopes.convert(jwt).forEach(authority -> {
+                authorities.add(new SimpleGrantedAuthority(authority.getAuthority()));
+                String scope = authority.getAuthority();
+                if (scope != null && scope.startsWith("SCOPE_")) {
+                    authorities.add(new SimpleGrantedAuthority(scope.replaceFirst("^SCOPE_", "")));
+                }
+            });
+
             Object permissions = jwt.getClaims().get("permissions");
             if (permissions instanceof Collection<?> permList) {
-                permList.forEach(perm -> authorities.add(new SimpleGrantedAuthority(perm.toString())));
+                permList.forEach(perm -> {
+                    String permission = perm.toString();
+                    if (permission != null && !permission.isBlank()) {
+                        authorities.add(new SimpleGrantedAuthority(permission));
+                        if (!permission.startsWith("SCOPE_")) {
+                            authorities.add(new SimpleGrantedAuthority("SCOPE_" + permission));
+                        }
+                    }
+                });
             }
 
             Object roles = jwt.getClaims().get("roles");
             if (roles instanceof Collection<?> roleClaims) {
                 roleClaims.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
             }
-            
+
             return authorities;
         });
         return converter;

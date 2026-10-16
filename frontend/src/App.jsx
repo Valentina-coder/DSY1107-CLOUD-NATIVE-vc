@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import api, { setAuthToken } from "./services/api";
 import { BannerSeguridad } from "./components/BannerSeguridad";
+import { auth0Config } from "./auth/auth0Config";
 
 const CATEGORIAS_DEFAULT = [
   { id: 1, nombre: "Iluminación" },
@@ -9,15 +10,13 @@ const CATEGORIAS_DEFAULT = [
   { id: 3, nombre: "Electrónica" }
 ];
 
-// Reemplaza esto con el Identificador exacto registrado en Auth0 API
-const AUDIENCE_API = "https://stock360-api";
-
 export function App() {
   const { isAuthenticated, user, loginWithPopup, logout, getAccessTokenSilently, isLoading } = useAuth0();
 
   const [categorias, setCategorias] = useState(CATEGORIAS_DEFAULT);
   const [productos, setProductos] = useState([]);
   const [lastStatus, setLastStatus] = useState(null);
+  const [feedback, setFeedback] = useState("");
 
   // Estados de formularios
   const [nuevaCategoria, setNuevaCategoria] = useState("");
@@ -27,32 +26,56 @@ export function App() {
   const [productoEditando, setProductoEditando] = useState(null);
 
   // Helper para asegurar token JWT legítimo en llamadas protegidas
-  const getTokenHeaders = async () => {
+  const getTokenHeaders = useCallback(async () => {
     try {
       const token = await getAccessTokenSilently({
         authorizationParams: {
-          audience: AUDIENCE_API
+          audience: auth0Config.audience,
+          scope: auth0Config.scope,
         }
       });
       setAuthToken(token);
       return { headers: { Authorization: `Bearer ${token}` } };
     } catch (e) {
+      setAuthToken(null);
       console.error("Error al obtener JWT desde Auth0:", e);
-      return {};
+      throw e;
     }
-  };
+  }, [getAccessTokenSilently]);
 
   // Sincronizar Token al iniciar sesión
   useEffect(() => {
     const sincronizarToken = async () => {
       if (isAuthenticated) {
-        await getTokenHeaders();
+        try {
+          await getTokenHeaders();
+        } catch (error) {
+          registrarError("obtener un token de Auth0", error);
+        }
       } else {
         setAuthToken(null);
       }
     };
     sincronizarToken();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, getTokenHeaders]);
+
+  const registrarError = (accion, error) => {
+    console.error(accion, error.response || error);
+    const status = error.response?.status ?? null;
+    const responseData = error.response?.data;
+    const detail = typeof responseData === "string"
+      ? responseData
+      : responseData?.message || error.message || "Error desconocido";
+    const guidance = status === 401
+      ? "Vuelve a iniciar sesión para obtener un token válido."
+      : status === 403
+        ? "Tu usuario necesita el permiso recurso.write en Auth0."
+        : error.isAxiosError
+          ? "No se pudo conectar con el backend local."
+          : detail;
+    setLastStatus(status);
+    setFeedback(`No se pudo ${accion}: ${guidance}`);
+  };
 
   const handleLogin = async () => {
     try {
@@ -74,33 +97,32 @@ export function App() {
   const cargarCategorias = async () => {
     try {
       const res = await api.get("/api/public/categorias");
-      if (Array.isArray(res.data) && res.data.length > 0) {
-        setCategorias(res.data);
-      } else {
-        setCategorias(CATEGORIAS_DEFAULT);
-      }
+      setCategorias(Array.isArray(res.data) ? res.data : []);
       setLastStatus(res.status);
+      setFeedback("Categorías cargadas.");
     } catch (err) {
-      console.error("Error cargando categorías:", err.response || err);
-      setLastStatus(err.response?.status || 500);
+      registrarError("cargar las categorías", err);
       setCategorias(CATEGORIAS_DEFAULT);
     }
   };
 
   const crearCategoria = async (e) => {
     e.preventDefault();
-    if (!nuevaCategoria.trim()) return;
+    if (!nuevaCategoria.trim()) {
+      setFeedback("Escribe un nombre para la categoría.");
+      return;
+    }
 
     try {
       const authConfig = await getTokenHeaders();
       const payload = { nombre: nuevaCategoria.trim() };
       const res = await api.post("/api/admin/categorias", payload, authConfig);
       setLastStatus(res.status);
+      setFeedback("Categoría guardada correctamente.");
       setNuevaCategoria("");
-      cargarCategorias();
+      await cargarCategorias();
     } catch (err) {
-      console.error("Error creando categoría:", err.response || err);
-      setLastStatus(err.response?.status || 500);
+      registrarError("guardar la categoría", err);
     }
   };
 
@@ -117,9 +139,9 @@ export function App() {
         setProductos(res.data);
       }
       setLastStatus(res.status);
+      setFeedback("Productos cargados.");
     } catch (err) {
-      console.error("Error cargando productos:", err.response || err);
-      setLastStatus(err.response?.status || 500);
+      registrarError("cargar los productos", err);
     }
   };
 
@@ -127,8 +149,9 @@ export function App() {
   const crearProducto = async (e) => {
     e.preventDefault();
     const catId = parseInt(nuevoProducto.categoriaId, 10);
-    if (!nuevoProducto.nombre || !nuevoProducto.precio || isNaN(catId)) {
-      alert("Por favor completa todos los campos correctamente.");
+    const precio = Number(nuevoProducto.precio);
+    if (!nuevoProducto.nombre.trim() || !Number.isFinite(precio) || precio < 0 || !Number.isInteger(catId)) {
+      setFeedback("Completa el nombre, un precio válido y una categoría.");
       return;
     }
 
@@ -136,20 +159,20 @@ export function App() {
       const authConfig = await getTokenHeaders();
       const payload = {
         nombre: nuevoProducto.nombre,
-        precio: parseFloat(nuevoProducto.precio),
+        precio,
         categoria: { id: catId }
       };
       const res = await api.post("/api/admin/productos", payload, authConfig);
       setLastStatus(res.status);
+      setFeedback("Producto guardado correctamente.");
       setNuevoProducto({
         nombre: "",
         precio: "",
         categoriaId: categorias[0]?.id ? String(categorias[0].id) : "1"
       });
-      cargarProductos();
+      await cargarProductos();
     } catch (err) {
-      console.error("Error creando producto:", err.response || err);
-      setLastStatus(err.response?.status || 500);
+      registrarError("guardar el producto", err);
     }
   };
 
@@ -159,20 +182,25 @@ export function App() {
     if (!productoEditando) return;
 
     const catId = parseInt(productoEditando.categoriaId, 10);
+    const precio = Number(productoEditando.precio);
+    if (!productoEditando.nombre.trim() || !Number.isFinite(precio) || precio < 0 || !Number.isInteger(catId)) {
+      setFeedback("Completa el nombre, un precio válido y una categoría.");
+      return;
+    }
     try {
       const authConfig = await getTokenHeaders();
       const payload = {
         nombre: productoEditando.nombre,
-        precio: parseFloat(productoEditando.precio),
+        precio,
         categoria: { id: catId }
       };
       const res = await api.put(`/api/admin/productos/${productoEditando.id}`, payload, authConfig);
       setLastStatus(res.status);
+      setFeedback("Cambios del producto guardados.");
       setProductoEditando(null);
-      cargarProductos();
+      await cargarProductos();
     } catch (err) {
-      console.error("Error actualizando producto:", err.response || err);
-      setLastStatus(err.response?.status || 500);
+      registrarError("actualizar el producto", err);
     }
   };
 
@@ -184,10 +212,10 @@ export function App() {
       const authConfig = await getTokenHeaders();
       const res = await api.delete(`/api/admin/productos/${id}`, authConfig);
       setLastStatus(res.status);
-      cargarProductos();
+      setFeedback("Producto eliminado.");
+      await cargarProductos();
     } catch (err) {
-      console.error("Error eliminando producto:", err.response || err);
-      setLastStatus(err.response?.status || 500);
+      registrarError("eliminar el producto", err);
     }
   };
 
@@ -227,7 +255,7 @@ export function App() {
         )}
       </header>
 
-      <BannerSeguridad lastStatus={lastStatus} />
+      <BannerSeguridad lastStatus={lastStatus} feedback={feedback} />
 
       {/* 1. SECCIÓN CATEGORÍAS */}
       <section style={{ marginBottom: "24px", background: "#f8fafc", padding: "16px", borderRadius: "8px" }}>

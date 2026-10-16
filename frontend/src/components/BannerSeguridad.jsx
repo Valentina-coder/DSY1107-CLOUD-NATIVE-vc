@@ -1,7 +1,7 @@
 import React from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 
-export function BannerSeguridad({ lastStatus }) {
+export function BannerSeguridad({ lastStatus, feedback }) {
   const { isAuthenticated, user } = useAuth0();
 
   return (
@@ -39,6 +39,11 @@ export function BannerSeguridad({ lastStatus }) {
           {lastStatus || "Sin peticiones aún"}
         </span>
       </p>
+      {feedback && (
+        <p role={lastStatus && lastStatus >= 400 ? "alert" : "status"} style={{ margin: "8px 0 0" }}>
+          {feedback}
+        </p>
+      )}
     </div>
   );
 }

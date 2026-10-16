@@ -144,3 +144,22 @@ Solución: Ingresa a tu consola de AWS, ve al servicio CloudWatch, busca los "Lo
 Error de CORS (Cross-Origin Resource Sharing):
 
 Asegúrate de que tu API Gateway en AWS tenga configurado CORS (Mocks de respuesta para el método OPTIONS) y permita explícitamente el origen http://localhost:5173.
+
+## Ejecución local del inventario
+
+1. En `frontend`, copia `.env.example` a `.env` y confirma que la URL de Auth0
+   coincida con tu aplicación y API.
+2. En Auth0, permite `http://localhost:5173` y `http://127.0.0.1:5173` en
+   **Allowed Callback URLs**, **Allowed Logout URLs** y **Allowed Web Origins**.
+   La API debe tener habilitados los permisos `recurso.read` y `recurso.write`;
+   el usuario debe recibir `recurso.write` para guardar, editar o eliminar.
+3. Inicia el backend desde `Backend` con `.\mvnw.cmd spring-boot:run`.
+4. En otra terminal, instala dependencias con `npm ci --prefix frontend` e
+   inicia el frontend con `npm run dev --prefix frontend`.
+
+El backend local persiste los datos en `Backend/data/` con H2 y crea las
+categorías iniciales si aún no existen. Esa carpeta está excluida de Git. Para
+usar PostgreSQL u otra base cloud, configura `SPRING_DATASOURCE_URL`,
+`SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` y
+`SPRING_DATASOURCE_DRIVER` en el entorno del backend. Para apuntar el frontend a
+otra API, configura `VITE_API_URL` en `frontend/.env`.

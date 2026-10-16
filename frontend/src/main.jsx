@@ -2,16 +2,18 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { Auth0Provider } from "@auth0/auth0-react";
+import { auth0Config } from "./auth/auth0Config";
 import App from "./App";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <Auth0Provider
-      domain="dev-mh13n.us.auth0.com"
-      clientId="Tq30nY20IofMYeKGiO7dg37iiLwBDhVR"
+      domain={auth0Config.domain}
+      clientId={auth0Config.clientId}
       authorizationParams={{
         redirect_uri: window.location.origin,
-        audience: "https://stock360-api",
+        audience: auth0Config.audience,
+        scope: `openid profile email ${auth0Config.scope}`,
       }}
     >
       <App />
