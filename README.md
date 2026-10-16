@@ -1,165 +1,280 @@
-# Stock360 - Sistema de Gestión de Inventario
+# Stock360 — Sistema de gestión de inventario
 
-Stock360 es una aplicación web (Single Page Application) diseñada para administrar un inventario de productos y categorías. Cuenta con un sistema de acceso público para consultar categorías y un panel de administración protegido mediante autenticación para realizar operaciones CRUD (Crear, Leer, Actualizar, Eliminar) sobre los productos.
+Stock360 es una aplicación web para consultar categorías y administrar productos. El frontend es una SPA en React y Vite; el backend es una API REST con Spring Boot, Java 25 y una base de datos H2 para desarrollo local. Auth0 protege las operaciones de escritura. El backend publica eventos de productos a RabbitMQ y ofrece una API administrativa protegida para gestionar colas, exchanges y bindings.
 
-## 🛠️ Estructura del Proyecto
+## Tecnologías
 
-La estructura actual del directorio principal se organiza de la siguiente manera:
+| Área | Tecnologías |
+| --- | --- |
+| Frontend | React 19, Vite, Axios, Auth0 React SDK |
+| Backend | Java 25, Spring Boot 4, Maven Wrapper, Spring MVC, Spring Data JPA |
+| Persistencia local | H2; PostgreSQL también está disponible como driver |
+| Mensajería | RabbitMQ 4 con plugin de administración; Spring AMQP |
+| Hosting frontend | Firebase Hosting |
+
+## Estructura
 
 ```text
-DSY1107-CLOUD-NATIVE-vc/
-│
-├── .firebase/                      <-- Cache y archivos temporales de Firebase CLI
-├── .env.example                    <-- Plantilla de variables de entorno del proyecto
-├── .firebaserc                     <-- Configuración de identificadores/proyectos en Firebase
-├── .gitignore                      <-- Exclusiones globales de Git para la raíz
-├── firebase.json                   <-- Configuración del despliegue en Firebase Hosting
-├── package.json                    <-- Script de automatización y orquestación de la raíz
-├── README.md                       <-- Documentación general del proyecto
-│
-├── Backend/                        <-- API REST en Java con Spring Boot (Puerto: 8080)
-│   ├── .mvn/wrapper/               <-- Archivos para ejecutar Maven sin instalación previa
-│   │   └── maven-wrapper.properties
+.
+├── Backend/
+│   ├── .mvn/wrapper/                 # Maven Wrapper y su versión
+│   ├── src/main/java/com/example/Backend/
+│   │   ├── config/                   # Seguridad, datos iniciales y configuración AMQP
+│   │   ├── controller/               # API REST de categorías, productos y administración RabbitMQ
+│   │   ├── messaging/                # Evento, productor, consumidor, topología y gestión AMQP
+│   │   ├── model/                    # Entidades JPA
+│   │   └── repository/               # Repositorios Spring Data
+│   ├── src/main/resources/           # application.properties y recursos SQL
+│   ├── src/test/java/                # Pruebas de integración y mensajería
+│   └── pom.xml
+├── frontend/
+│   ├── public/
 │   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/example/Backend/
-│   │   │   │   ├── config/         <-- Configuraciones del servidor (Seguridad/CORS)
-│   │   │   │   │   └── SeguridadConfig.java
-│   │   │   │   ├── controller/     <-- Controladores REST (Endpoints para la API)
-│   │   │   │   │   ├── CategoriaController.java
-│   │   │   │   │   └── ProductoController.java
-│   │   │   │   ├── model/          <-- Entidades y modelos de datos (JPA/Hibernate)
-│   │   │   │   │   ├── Categoria.java
-│   │   │   │   │   └── Producto.java
-│   │   │   │   ├── repository/     <-- Capa de persistencia y consultas a BD (Spring Data JPA)
-│   │   │   │   │   ├── CategoriaRepository.java
-│   │   │   │   │   └── ProductoRepository.java
-│   │   │   │   └── BackendApplication.java <-- Punto de entrada de la aplicación Spring Boot
-│   │   │   └── resources/          <-- Recursos estáticos y archivos de propiedades
-│   │   │       ├── application.properties  <-- Configuración de BD, puertos y propiedades
-│   │   │       └── data.sql        <-- Script SQL con datos iniciales de prueba
-│   │   └── test/                   <-- Pruebas unitarias e integración del Backend
-│   │       └── java/com/example/Backend/
-│   │           └── BackendApplicationTests.java
-│   ├── .gitattributes
-│   ├── .gitignore
-│   ├── mvnw / mvnw.cmd             <-- Ejecutables Wrapper de Maven (Linux/macOS y Windows)
-│   └── pom.xml                     <-- Archivo de dependencias y plugins Maven
-│
-└── frontend/                       <-- Aplicación web SPA con React + Vite (Puerto: 5173)
-    ├── dist/                       <-- Build estático generado para producción
-    ├── public/                     <-- Recursos públicos globales (favicons, íconos)
-    ├── src/                        <-- Código fuente del cliente web
-    │   ├── assets/                 <-- Imágenes y vectores importados en React
-    │   ├── auth/                   <-- Configuración de autenticación del cliente
-    │   │   └── authConfig.js
-    │   ├── components/             <-- Componentes reutilizables de la UI
-    │   │   ├── BannerSeguridad.jsx
-    │   │   └── Navbar.jsx
-    │   ├── services/               <-- Módulos para peticiones HTTP al Backend
-    │   │   └── api.js
-    │   ├── App.css / App.jsx       <-- Componente principal de la interfaz y sus estilos
-    │   ├── index.css               <-- Estilos globales de la aplicación
-    │   └── main.jsx                <-- Punto de inicio de la app React
-    ├── .gitignore
-    ├── .oxlintrc.json              <-- Configuración de linter (Oxlint)
-    ├── index.html                  <-- Plantilla HTML base servida por Vite
-    ├── package.json                <-- Dependencias de npm y scripts del frontend
-    ├── README.md                   <-- Documentación específica del frontend
-    └── vite.config.js              <-- Configuración de compilación y servidor Vite
-## 🚀 Pasos Realizados Hasta el Momento
+│   │   ├── auth/                     # Configuración Auth0
+│   │   ├── components/
+│   │   └── services/                 # Cliente HTTP de la API
+│   ├── .env.example
+│   └── package.json
+├── docker-compose.yml                # RabbitMQ local
+├── firebase.json
+└── package.json                      # Comandos de desarrollo
+```
 
-## 🚀 Tecnologías Utilizadas
+## Funcionalidad
 
-**Frontend:**
-*   **React (con Vite):** Librería principal para construir la interfaz de usuario.
-*   **Auth0 (@auth0/auth0-react):** Plataforma de identidad para gestionar el inicio de sesión y la generación de tokens JWT.
-*   **Axios:** Cliente HTTP para realizar las peticiones a la API.
+- Consulta pública de categorías.
+- Inicio de sesión con Auth0 y envío de JWT a la API.
+- Operaciones protegidas para crear categorías y consultar, crear, actualizar y eliminar productos.
+- Publicación de `producto.creado` al crear un producto.
+- Consumo asíncrono de eventos desde RabbitMQ.
+- Reintentos de mensajes ante errores transitorios; mensajes rechazados se registran en los logs y se enrutan a una cola de mensajes fallidos (DLQ).
+- API administrativa protegida para crear y eliminar colas, exchanges y bindings.
 
-**Backend:**
-*   **AWS (Amazon Web Services):** Infraestructura Serverless utilizando Amazon API Gateway y AWS Lambda.
-*   **Base de datos:** [Añade aquí tu BD, ej: MySQL / PostgreSQL / DynamoDB].
+## Requisitos
 
----
+- JDK 25 para compilar y ejecutar el backend.
+- Node.js y npm para el frontend.
+- Docker Desktop iniciado para ejecutar RabbitMQ localmente.
+- Una aplicación SPA y una API configuradas en Auth0 para probar la autenticación.
 
-## ⚙️ Características Principales
+## Configuración local
 
-1.  **Área Pública:** Consulta del listado de categorías disponibles sin necesidad de iniciar sesión.
-2.  **Autenticación Segura:** Inicio y cierre de sesión gestionados por Auth0, protegiendo las rutas de escritura.
-3.  **Gestión de Productos (Admin):** 
-    *   Consultar el inventario completo.
-    *   Agregar nuevos productos asignándolos a categorías existentes.
-    *   Editar el nombre, precio y categoría de productos existentes.
-    *   Eliminar productos del sistema.
-4.  **Sincronización de Tokens:** Intercepción automática de tokens JWT para adjuntarlos en las cabeceras `Authorization` de las peticiones protegidas.
+### 1. Configurar Auth0
 
----
+En la API de Auth0, el **Identifier** debe coincidir con `VITE_AUTH0_AUDIENCE`. Configura los permisos que solicita la aplicación, por ejemplo `producto:read` y `recurso:write`. Habilita RBAC y la inclusión de permisos en el access token, y asigna al usuario los permisos necesarios.
 
-## 🛠️ Requisitos Previos
+Para las operaciones administrativas de RabbitMQ, el access token debe incluir el permiso `admin` o el usuario debe autenticarse con el rol `ROLE_ADMIN`. `recurso:write` permite las operaciones administrativas del inventario, pero no concede administración de RabbitMQ.
 
-Antes de ejecutar este proyecto localmente, asegúrate de tener instalado:
-*   [Node.js](https://nodejs.org/) (versión 16 o superior).
-*   Una cuenta activa en [Auth0](https://auth0.com/) con una Single Page Application configurada.
-*   El backend desplegado y operativo en AWS.
+En la aplicación SPA de Auth0, configura las URLs de callback, cierre de sesión y origen web permitidos, incluyendo:
 
----
+```text
+http://localhost:5173
+http://127.0.0.1:5173
+```
 
-## 💻 Instalación y Configuración Local
+### 2. Configurar el frontend
 
-**1. Clonar el repositorio**
-```bash
-git clone [https://github.com/tu-usuario/stock360.git](https://github.com/tu-usuario/stock360.git)
-cd stock360
+Desde PowerShell, copia la plantilla:
 
-2. Instalar dependencias
-npm install
+```powershell
+Copy-Item frontend\.env.example frontend\.env
+```
 
-3. Configurar variables de entorno
-Crea un archivo .env en la raíz del proyecto (al mismo nivel que package.json) y agrega las siguientes variables. Reemplaza los valores con las credenciales de tu tenant de Auth0 y la URL de tu API en AWS:
-# URL base de tu backend en AWS API Gateway
-VITE_API_URL=[https://ih7rm87w2i.execute-api.us-east-1.amazonaws.com](https://ih7rm87w2i.execute-api.us-east-1.amazonaws.com)
+Revisa `frontend\.env` y ajusta las variables a tu tenant de Auth0 y a la URL de la API:
 
-# Credenciales de Auth0
-VITE_AUTH0_DOMAIN=tu-dominio.auth0.com
-VITE_AUTH0_CLIENT_ID=tu_client_id_generado_por_auth0
-VITE_AUTH0_AUDIENCE=https://stock360-api
+```dotenv
+VITE_AUTH0_DOMAIN=tu-tenant.us.auth0.com
+VITE_AUTH0_CLIENT_ID=tu-client-id
+VITE_AUTH0_AUDIENCE=https://tu-api-identifier
+VITE_AUTH0_API_SCOPE=producto:read recurso:write
+VITE_API_URL=http://localhost:8080
+```
 
-4. Iniciar el servidor de desarrollo
+Los nombres de permisos deben coincidir exactamente con los creados en Auth0. No guardes secretos, contraseñas ni tokens en el frontend; las variables `VITE_*` quedan incluidas en el bundle del navegador. No subas el archivo `.env`.
 
-npm run dev
+### 3. Iniciar RabbitMQ
 
-🐛 Solución de Problemas Comunes 
-Error 401 Unauthorized al crear/editar productos:
+Desde la raíz del repositorio:
 
-Verifica que has iniciado sesión.
+```powershell
+docker compose up -d rabbitmq
+docker compose ps
+```
 
-Asegúrate de que el valor de AUDIENCE_API en App.jsx coincida exactamente con el Identificador de la API registrado en el panel de Auth0. Si no coinciden, Auth0 emitirá un token opaco en lugar de un JWT válido.
+Espera a que el contenedor `stock360-rabbitmq` indique estado `healthy`. La interfaz de administración está en [http://localhost:15672](http://localhost:15672). Las credenciales predeterminadas `stock360` / `stock360-local` son solo para desarrollo local; cámbialas para cualquier otro entorno.
 
-Error 500 Internal Server Error en peticiones (ej: /api/public/categorias):
+Puedes configurar `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME` y `RABBITMQ_PASSWORD` en el entorno del backend. Los valores predeterminados apuntan a `localhost:5672`.
 
-Este es un error del lado del servidor (AWS). La petición desde React está llegando correctamente al backend, pero la función está fallando al procesarla.
+### 4. Iniciar el backend
 
-Solución: Ingresa a tu consola de AWS, ve al servicio CloudWatch, busca los "Log groups" de tu función Lambda asociada y revisa el registro exacto del error (generalmente suele ser un error de conexión a la base de datos o un fallo de sintaxis en el código backend).
+En una terminal de PowerShell:
 
-Error de CORS (Cross-Origin Resource Sharing):
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-25.0.2"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+cd Backend
+.\mvnw.cmd spring-boot:run
+```
 
-Asegúrate de que tu API Gateway en AWS tenga configurado CORS (Mocks de respuesta para el método OPTIONS) y permita explícitamente el origen http://localhost:5173.
+El backend escucha en `http://localhost:8080`. En los logs confirma que arranca con Java 25, que se conecta a `localhost:5672` y que Spring Boot informa que la aplicación inició correctamente.
 
-## Ejecución local del inventario
+La base H2 local persiste en `Backend/data/`. No borres ni modifiques esa base mientras el backend esté ejecutándose. Para usar PostgreSQL u otra base, configura `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` y `SPRING_DATASOURCE_DRIVER`.
 
-1. En `frontend`, copia `.env.example` a `.env` y confirma que la URL de Auth0
-   coincida con tu aplicación y API.
-2. En Auth0, permite `http://localhost:5173` y `http://127.0.0.1:5173` en
-   **Allowed Callback URLs**, **Allowed Logout URLs** y **Allowed Web Origins**.
-   La API debe tener habilitados los permisos `recurso.read` y `recurso.write`;
-   el usuario debe recibir `recurso.write` para guardar, editar o eliminar.
-3. Inicia el backend desde `Backend` con `.\mvnw.cmd spring-boot:run`.
-4. En otra terminal, instala dependencias con `npm ci --prefix frontend` e
-   inicia el frontend con `npm run dev --prefix frontend`.
+### 5. Iniciar el frontend
 
-El backend local persiste los datos en `Backend/data/` con H2 y crea las
-categorías iniciales si aún no existen. Esa carpeta está excluida de Git. Para
-usar PostgreSQL u otra base cloud, configura `SPRING_DATASOURCE_URL`,
-`SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` y
-`SPRING_DATASOURCE_DRIVER` en el entorno del backend. Para apuntar el frontend a
-otra API, configura `VITE_API_URL` en `frontend/.env`.
+En otra terminal, desde la raíz:
+
+```powershell
+npm ci --prefix frontend
+npm run frontend
+```
+
+Abre [http://localhost:5173](http://localhost:5173). Para detener RabbitMQ al terminar:
+
+```powershell
+docker compose down
+```
+
+`docker compose stop rabbitmq` detiene el broker sin eliminar el contenedor. `docker compose down` elimina el contenedor; esta configuración no declara un volumen persistente, por lo que los mensajes locales pueden perderse. El backend vuelve a declarar su topología al arrancar.
+
+Para el recorrido completo de implementación y la prueba guiada del productor, consumidor, reintentos, DLQ y API administrativa, consulta [Guía paso a paso de RabbitMQ](./docs/guia-rabbitmq.md).
+
+## RabbitMQ: productor, consumidor y DLQ
+
+Al guardar un producto, el backend publica un JSON de este tipo en el exchange `stock360.productos.exchange`:
+
+```json
+{"productoId":42,"nombre":"Teclado"}
+```
+
+La clave de enrutamiento es `producto.creado`. El exchange tipo `topic` enruta el mensaje a la cola durable `stock360.productos`. El consumidor valida el evento y registra su procesamiento.
+
+La topología también declara:
+
+| Recurso | Nombre | Uso |
+| --- | --- | --- |
+| Exchange de productos | `stock360.productos.exchange` | Recibe eventos de producto |
+| Cola de productos | `stock360.productos` | Cola del consumidor |
+| Exchange de mensajes fallidos | `stock360.productos.dlx` | Exchange de dead lettering |
+| Cola de mensajes fallidos | `stock360.productos.dlq` | Conserva mensajes rechazados para inspección o reenvío |
+
+Los fallos transitorios se reintentan hasta tres veces. Un mensaje inválido o que no puede procesarse se registra en el log, se rechaza sin reencolar y RabbitMQ lo dirige a la DLQ. La DLQ no tiene un consumidor automático, de modo que los mensajes permanecen disponibles para su análisis.
+
+### Probar el flujo desde RabbitMQ Management
+
+1. Abre [http://localhost:15672](http://localhost:15672) e inicia sesión con las credenciales locales configuradas.
+2. En **Exchanges**, selecciona `stock360.productos.exchange`.
+3. Usa **Publish message**, con routing key `producto.creado` y este payload:
+
+   ```json
+   {"productoId":987654,"nombre":"Prueba RabbitMQ"}
+   ```
+
+4. Confirma en la terminal del backend el log `Evento de producto procesado`. El mensaje normalmente desaparece rápidamente de la cola de productos porque el consumidor está activo.
+5. Para probar la DLQ, publica `{json-malformado` usando el mismo exchange y routing key. Se realizarán los reintentos; después, el mensaje aparecerá en `stock360.productos.dlq` y el rechazo quedará registrado en los logs.
+6. En **Queues and Streams**, abre la DLQ y usa **Get messages** para inspeccionar el mensaje. Ten cuidado al confirmar o eliminar mensajes.
+
+También puedes probar el productor creando un producto desde la aplicación; la publicación RabbitMQ ocurre en el backend después de persistir el producto.
+
+## API administrativa de RabbitMQ
+
+Todas las rutas tienen el prefijo `/api/admin/rabbitmq` y requieren un JWT con el permiso Auth0 `admin` o el rol `ROLE_ADMIN`. Envía el token en `Authorization: Bearer <token>`. El permiso `recurso:write` no autoriza estas rutas.
+
+| Operación | Método y ruta |
+| --- | --- |
+| Crear cola | `POST /api/admin/rabbitmq/queues` |
+| Eliminar cola | `DELETE /api/admin/rabbitmq/queues?name=mi-cola` |
+| Crear exchange | `POST /api/admin/rabbitmq/exchanges` |
+| Eliminar exchange | `DELETE /api/admin/rabbitmq/exchanges?name=mi-exchange` |
+| Crear binding | `POST /api/admin/rabbitmq/bindings` |
+| Eliminar binding | `DELETE /api/admin/rabbitmq/bindings?queue=mi-cola&exchange=mi-exchange&routingKey=mi.clave` |
+
+Ejemplos de cuerpos JSON:
+
+```json
+{
+  "name": "mi-cola",
+  "durable": true,
+  "exclusive": false,
+  "autoDelete": false,
+  "deadLetterExchange": "mi-dlx",
+  "deadLetterRoutingKey": "fallido"
+}
+```
+
+```json
+{
+  "name": "mi-exchange",
+  "type": "TOPIC",
+  "durable": true,
+  "autoDelete": false
+}
+```
+
+```json
+{
+  "queue": "mi-cola",
+  "exchange": "mi-exchange",
+  "routingKey": "evento.creado"
+}
+```
+
+Los tipos de exchange admitidos son `DIRECT`, `FANOUT`, `TOPIC` y `HEADERS`. Para configurar una DLQ en una cola, envía juntos `deadLetterExchange` y `deadLetterRoutingKey`. La API impide gestionar recursos reservados `amq.*` y las colas/exchanges internos del flujo `stock360.productos*`.
+
+## Pruebas y calidad
+
+Desde `Backend`, ejecuta las pruebas con Java 25:
+
+```powershell
+.\mvnw.cmd clean test
+```
+
+Las pruebas usan H2 en memoria para no bloquear ni modificar la base local. Incluyen persistencia, publicación/validación de eventos, gestión de recursos RabbitMQ y autorización administrativa.
+
+Para compilar el frontend y ejecutar el linter:
+
+```powershell
+npm run build --prefix frontend
+npm run lint --prefix frontend
+```
+
+## Despliegue
+
+Firebase Hosting sirve el frontend desde `frontend/dist` según `firebase.json`. Antes de compilar para producción, configura `VITE_API_URL` con la URL pública del backend y los valores públicos correctos de Auth0. El backend y RabbitMQ deben estar desplegados en un entorno accesible y seguro; el broker local de Docker Compose no es una configuración de producción. Protege credenciales mediante el gestor de secretos del entorno y no expongas RabbitMQ Management a Internet sin controles de red y autenticación adecuados.
+
+## Solución de problemas
+
+### `UnsupportedClassVersionError` al iniciar el backend
+
+Maven está usando un JDK anterior al utilizado para compilar. Configura `JAVA_HOME` y `PATH` para Java 25 en la misma terminal y vuelve a compilar:
+
+```powershell
+java -version
+.\mvnw.cmd -version
+.\mvnw.cmd clean spring-boot:run
+```
+
+Ambas versiones deben indicar Java 25.
+
+### No se puede conectar a RabbitMQ
+
+- Comprueba que Docker Desktop esté iniciado.
+- Ejecuta `docker compose ps` y espera el estado `healthy`.
+- Confirma que los puertos `5672` y `15672` estén disponibles.
+- Revisa que `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME` y `RABBITMQ_PASSWORD` coincidan con la configuración del contenedor.
+- Revisa los logs con `docker compose logs rabbitmq`.
+
+### Error 401 o 403 de Auth0
+
+- `401`: inicia sesión de nuevo y confirma dominio, client ID, audience y URLs permitidas en Auth0.
+- `403` en operaciones de inventario: confirma que el access token tenga `recurso:write`.
+- `403` en administración de RabbitMQ: el token necesita `admin` o el rol `ROLE_ADMIN`.
+- Los permisos del API de Auth0 deben coincidir exactamente con `VITE_AUTH0_API_SCOPE`. Reinicia Vite tras cambiar `frontend/.env` y vuelve a iniciar sesión para obtener un token nuevo.
+
+### Error de CORS
+
+Configura `CORS_ALLOWED_ORIGINS` en el backend con el origen exacto del frontend, por ejemplo `http://localhost:5173`, y confirma que el backend se haya reiniciado después del cambio.
+
+### La base H2 está bloqueada
+
+No ejecutes otra instancia del backend ni las pruebas contra `Backend/data/` mientras el servidor local esté utilizando esa base. La suite `mvnw clean test` configura H2 en memoria automáticamente.

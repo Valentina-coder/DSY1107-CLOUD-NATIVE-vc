@@ -8,6 +8,7 @@ import com.example.Backend.model.Categoria;
 import com.example.Backend.model.Producto;
 import com.example.Backend.repository.CategoriaRepository;
 import com.example.Backend.repository.ProductoRepository;
+import com.example.Backend.messaging.ProductoEventPublisher;
 
 import java.util.List;
 
@@ -18,10 +19,15 @@ public class ProductoController {
 
     private final ProductoRepository productoRepository;
     private final CategoriaRepository categoriaRepository;
+    private final ProductoEventPublisher productoEventPublisher;
 
-    public ProductoController(ProductoRepository productoRepository, CategoriaRepository categoriaRepository) {
+    public ProductoController(
+            ProductoRepository productoRepository,
+            CategoriaRepository categoriaRepository,
+            ProductoEventPublisher productoEventPublisher) {
         this.productoRepository = productoRepository;
         this.categoriaRepository = categoriaRepository;
+        this.productoEventPublisher = productoEventPublisher;
     }
 
     @GetMapping("/productos")
@@ -40,6 +46,7 @@ public class ProductoController {
             }
 
             Producto nuevo = productoRepository.save(producto);
+            productoEventPublisher.publicarProductoCreado(nuevo);
             return new ResponseEntity<>(nuevo, HttpStatus.CREATED);
         } catch (Exception e) {
             e.printStackTrace(); // Imprime la falla exacta en la consola de Java
