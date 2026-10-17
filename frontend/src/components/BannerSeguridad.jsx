@@ -3,47 +3,45 @@ import { useAuth0 } from "@auth0/auth0-react";
 
 export function BannerSeguridad({ lastStatus, feedback }) {
   const { isAuthenticated, user } = useAuth0();
+  const successfulStatus = lastStatus === 200 || lastStatus === 201 || lastStatus === 204;
+  const hasError = (lastStatus !== null && lastStatus >= 400)
+    || feedback.startsWith("No se pudo")
+    || feedback.startsWith("Auth0 no pudo");
+  const statusClass = hasError
+    ? "security-status-error"
+    : lastStatus === null
+      ? "security-status-idle"
+      : successfulStatus
+        ? "security-status-success"
+        : "security-status-idle";
 
   return (
-    <div
-      style={{
-        background: "#1e293b",
-        color: "white",
-        padding: "16px",
-        borderRadius: "8px",
-        marginBottom: "20px",
-      }}
-    >
-      <h3 style={{ margin: "0 0 10px 0" }}>🛡️ Panel de Seguridad & Estado JWT</h3>
-      <p style={{ margin: "4px 0" }}>
-        <strong>Autenticado:</strong> {isAuthenticated ? "✅ SÍ" : "❌ NO"}
-      </p>
-      {isAuthenticated && (
-        <p style={{ margin: "4px 0" }}>
-          <strong>Usuario:</strong> {user?.name || user?.email}
-        </p>
-      )}
-      <p style={{ margin: "4px 0" }}>
-        <strong>Último Código HTTP:</strong>{" "}
-        <span
-          style={{
-            color:
-              lastStatus === 200 || lastStatus === 201
-                ? "#4ade80"
-                : lastStatus
-                ? "#f87171"
-                : "#9ca3af",
-            fontWeight: "bold",
-          }}
-        >
-          {lastStatus || "Sin peticiones aún"}
+    <section className="security-banner" aria-label="Estado de seguridad y conexión">
+      <div className="security-main">
+        <span className="security-shield" aria-hidden="true">✓</span>
+        <div>
+          <strong>Tu espacio está protegido</strong>
+          <p>Autenticación y conexión API</p>
+        </div>
+      </div>
+      <div className="security-details">
+        <span className={`auth-state ${isAuthenticated ? "auth-state-on" : ""}`}>
+          <span className="security-dot" />
+          {isAuthenticated ? "Sesión segura" : "Sesión pública"}
         </span>
-      </p>
+      {isAuthenticated && (
+          <span className="security-user">{user?.name || user?.email}</span>
+      )}
+        <span className="http-status">
+          <span className="http-label">API</span>
+          <strong className={statusClass}>{lastStatus ?? (hasError ? "Error" : "Lista")}</strong>
+        </span>
+      </div>
       {feedback && (
-        <p role={lastStatus && lastStatus >= 400 ? "alert" : "status"} style={{ margin: "8px 0 0" }}>
+        <p className={`security-feedback ${hasError ? "feedback-error" : "feedback-success"}`} role={hasError ? "alert" : "status"}>
           {feedback}
         </p>
       )}
-    </div>
+    </section>
   );
 }
