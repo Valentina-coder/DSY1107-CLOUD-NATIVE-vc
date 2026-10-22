@@ -1,6 +1,7 @@
 package com.example.Backend.messaging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,32 @@ public class ProductoEventConsumer {
 
         logger.info("Evento de producto procesado: productoId={}, nombre={}",
                 event.productoId(), event.nombre());
+    }
+
+    @RabbitListener(queues = RabbitTopology.INVENTORY_QUEUE)
+    public void consumirEventoInventario(String payload) {
+        validarEventoOperativo(payload, "inventario");
+    }
+
+    @RabbitListener(queues = RabbitTopology.NOTIFICATION_QUEUE)
+    public void consumirEventoNotificacion(String payload) {
+        validarEventoOperativo(payload, "notificaciones");
+    }
+
+    private void validarEventoOperativo(String payload, String tipo) {
+        try {
+            JsonNode event = objectMapper.readTree(payload);
+            if (event == null || !event.isObject() || event.isEmpty()) {
+                throw new AmqpRejectAndDontRequeueException(
+                        "El evento de " + tipo + " debe ser un objeto JSON no vacío");
+            }
+            logger.info("Evento de {} validado: {}", tipo, limitarPayload(payload));
+        } catch (JsonProcessingException exception) {
+            logger.error("Evento de {} inválido; se rechazará hacia su DLQ. payload={}",
+                    tipo, limitarPayload(payload), exception);
+            throw new AmqpRejectAndDontRequeueException(
+                    "Evento de " + tipo + " inválido", exception);
+        }
     }
 
     private String limitarPayload(String payload) {

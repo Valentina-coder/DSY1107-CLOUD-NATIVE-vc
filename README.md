@@ -35,7 +35,8 @@ Stock360 es una aplicación web para consultar categorías y administrar product
 │   │   └── services/                 # Cliente HTTP de la API
 │   ├── .env.example
 │   └── package.json
-├── docker-compose.yml                # RabbitMQ local
+├── docker-compose.yml                # Backend y clúster RabbitMQ de dos nodos
+├── rabbitmq/rabbitmq.conf            # Descubrimiento de nodos RabbitMQ
 ├── firebase.json
 └── package.json                      # Comandos de desarrollo
 ```
@@ -97,11 +98,13 @@ Los nombres de permisos deben coincidir exactamente con los creados en Auth0. No
 Desde la raíz del repositorio:
 
 ```powershell
-docker compose up -d rabbitmq
+docker compose up -d rabbitmq1 rabbitmq2
 docker compose ps
 ```
 
-Espera a que el contenedor `stock360-rabbitmq` indique estado `healthy`. La interfaz de administración está en [http://localhost:15672](http://localhost:15672). Las credenciales predeterminadas `stock360` / `stock360-local` son solo para desarrollo local; cámbialas para cualquier otro entorno.
+Si ya tienes un contenedor usando los puertos predeterminados, no lo detengas a ciegas: usa las variables de puertos alternativos indicadas en la [guía de RabbitMQ](./docs/guia-rabbitmq.md#4-iniciar-rabbitmq).
+
+Espera a que `stock360-rabbitmq1` y `stock360-rabbitmq2` estén saludables. Confirma el clúster con `docker exec stock360-rabbitmq1 rabbitmqctl cluster_status`. Las consolas están en [http://localhost:15672](http://localhost:15672) y [http://localhost:15673](http://localhost:15673). Las credenciales predeterminadas `stock360` / `stock360-local` son solo para desarrollo local; cámbialas para cualquier otro entorno.
 
 Puedes configurar `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME` y `RABBITMQ_PASSWORD` en el entorno del backend. Los valores predeterminados apuntan a `localhost:5672`.
 
@@ -135,9 +138,11 @@ Abre [http://localhost:5173](http://localhost:5173). Para detener RabbitMQ al te
 docker compose down
 ```
 
-`docker compose stop rabbitmq` detiene el broker sin eliminar el contenedor. `docker compose down` elimina el contenedor; esta configuración no declara un volumen persistente, por lo que los mensajes locales pueden perderse. El backend vuelve a declarar su topología al arrancar.
+`docker compose stop` detiene los servicios sin eliminar sus datos. `docker compose down` elimina los contenedores, pero conserva los volúmenes nombrados. En un entorno de prueba, `docker compose down -v` también elimina los datos persistidos.
 
 Para el recorrido completo de implementación y la prueba guiada del productor, consumidor, reintentos, DLQ y API administrativa, consulta [Guía paso a paso de RabbitMQ](./docs/guia-rabbitmq.md).
+
+Para el entregable académico de diseño asíncrono —contexto, justificación, diagrama Mermaid y manejo de errores— consulta [Diseño de integración asíncrona con RabbitMQ](./docs/actividad-diseno-integracion-rabbitmq.md).
 
 ## RabbitMQ: productor, consumidor y DLQ
 
@@ -149,16 +154,15 @@ Al guardar un producto, el backend publica un JSON de este tipo en el exchange `
 
 La clave de enrutamiento es `producto.creado`. El exchange tipo `topic` enruta el mensaje a la cola durable `stock360.productos`. El consumidor valida el evento y registra su procesamiento.
 
-La topología también declara:
+La topología también declara tres colas durables, cada una con un exchange `direct` de dead-letter y su propia DLQ:
 
-| Recurso | Nombre | Uso |
-| --- | --- | --- |
-| Exchange de productos | `stock360.productos.exchange` | Recibe eventos de producto |
-| Cola de productos | `stock360.productos` | Cola del consumidor |
-| Exchange de mensajes fallidos | `stock360.productos.dlx` | Exchange de dead lettering |
-| Cola de mensajes fallidos | `stock360.productos.dlq` | Conserva mensajes rechazados para inspección o reenvío |
+| Cola | Routing key | Exchange DLX `direct` | DLQ |
+| --- | --- | --- | --- |
+| `stock360.productos` | `producto.creado` | `stock360.productos.dlx` | `stock360.productos.dlq` |
+| `stock360.inventario` | `inventario.actualizado` | `stock360.inventario.dlx` | `stock360.inventario.dlq` |
+| `stock360.notificaciones` | `notificacion.solicitada` | `stock360.notificaciones.dlx` | `stock360.notificaciones.dlq` |
 
-Los fallos transitorios se reintentan hasta tres veces. Un mensaje inválido o que no puede procesarse se registra en el log, se rechaza sin reencolar y RabbitMQ lo dirige a la DLQ. La DLQ no tiene un consumidor automático, de modo que los mensajes permanecen disponibles para su análisis.
+Las colas de inventario y notificaciones son demostrativas: sus consumidores validan JSON y registran eventos, pero no ejecutan tareas de negocio ni envían notificaciones. Un mensaje inválido se rechaza sin reencolar y RabbitMQ lo enruta a su DLQ. Las DLQ no tienen consumidores automáticos.
 
 ### Probar el flujo desde RabbitMQ Management
 
@@ -171,8 +175,9 @@ Los fallos transitorios se reintentan hasta tres veces. Un mensaje inválido o q
    ```
 
 4. Confirma en la terminal del backend el log `Evento de producto procesado`. El mensaje normalmente desaparece rápidamente de la cola de productos porque el consumidor está activo.
-5. Para probar la DLQ, publica `{json-malformado` usando el mismo exchange y routing key. Se realizarán los reintentos; después, el mensaje aparecerá en `stock360.productos.dlq` y el rechazo quedará registrado en los logs.
-6. En **Queues and Streams**, abre la DLQ y usa **Get messages** para inspeccionar el mensaje. Ten cuidado al confirmar o eliminar mensajes.
+5. Para probar la DLQ de productos, publica `{json-malformado` con routing key `producto.creado`; revisa `stock360.productos.dlq`.
+6. Para probar las otras DLQ, publica `no-es-json` con las routing keys `inventario.actualizado` y `notificacion.solicitada`; revisa sus respectivas DLQ.
+7. En **Queues and Streams**, usa **Get messages** para inspeccionar los mensajes. Ten cuidado al confirmarlos o eliminarlos.
 
 También puedes probar el productor creando un producto desde la aplicación; la publicación RabbitMQ ocurre en el backend después de persistir el producto.
 
@@ -240,7 +245,7 @@ npm run lint --prefix frontend
 
 ## Despliegue
 
-Firebase Hosting sirve el frontend desde `frontend/dist` según `firebase.json`. Antes de compilar para producción, configura `VITE_API_URL` con la URL pública del backend y los valores públicos correctos de Auth0. El backend y RabbitMQ deben estar desplegados en un entorno accesible y seguro; el broker local de Docker Compose no es una configuración de producción. Protege credenciales mediante el gestor de secretos del entorno y no expongas RabbitMQ Management a Internet sin controles de red y autenticación adecuados.
+Firebase Hosting sirve el frontend desde `frontend/dist` según `firebase.json`. Para el escenario académico en AWS, `docker compose up -d --build` levanta el backend y los dos nodos RabbitMQ en EC2. Configura `VITE_API_URL` con la URL de Amazon API Gateway antes de compilar y desplegar el frontend. Sigue [Despliegue AWS con API Gateway y Auth0](./docs/despliegue-aws.md) para crear la HTTP API/JWT authorizer, apuntar Firebase al gateway y preparar la demostración. En AWS usa credenciales fuertes y limita el acceso a RabbitMQ Management por grupo de seguridad; el backend debe seguir validando JWT y permisos.
 
 ## Solución de problemas
 
@@ -259,10 +264,10 @@ Ambas versiones deben indicar Java 25.
 ### No se puede conectar a RabbitMQ
 
 - Comprueba que Docker Desktop esté iniciado.
-- Ejecuta `docker compose ps` y espera el estado `healthy`.
-- Confirma que los puertos `5672` y `15672` estén disponibles.
+- Ejecuta `docker compose ps` y espera el estado `healthy` de ambos nodos.
+- Confirma que los puertos `5672`, `15672` y `15673` estén disponibles.
 - Revisa que `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME` y `RABBITMQ_PASSWORD` coincidan con la configuración del contenedor.
-- Revisa los logs con `docker compose logs rabbitmq`.
+- Revisa los logs con `docker compose logs rabbitmq1 rabbitmq2`.
 
 ### Error 401 o 403 de Auth0
 

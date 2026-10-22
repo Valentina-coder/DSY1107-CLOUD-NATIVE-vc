@@ -53,4 +53,20 @@ class ProductoEventMessagingTest {
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class)
                 .hasMessageContaining("datos requeridos");
     }
+
+    @Test
+    void rejectsMalformedInventoryEventsSoRabbitCanRouteThemToTheirDeadLetterQueue() {
+        ProductoEventConsumer consumer = new ProductoEventConsumer(objectMapper);
+
+        assertThatThrownBy(() -> consumer.consumirEventoInventario("{invalid-json"))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class)
+                .hasMessageContaining("inventario inválido");
+    }
+
+    @Test
+    void acceptsNonEmptyNotificationEventObjects() {
+        ProductoEventConsumer consumer = new ProductoEventConsumer(objectMapper);
+
+        consumer.consumirEventoNotificacion("{\"tipo\":\"stock-bajo\"}");
+    }
 }

@@ -1,6 +1,6 @@
 # Guía paso a paso: RabbitMQ en Stock360
 
-Esta guía describe qué se implementó, dónde vive cada parte del código y cómo comprobar el flujo completo con RabbitMQ ejecutándose localmente.
+Esta guía describe qué se implementó, dónde vive cada parte del código y cómo comprobar el flujo completo con un clúster RabbitMQ de dos nodos, tres colas y sus DLQ.
 
 ## 1. Flujo implementado
 
@@ -14,28 +14,33 @@ ProductoController guarda el producto
 ProductoEventPublisher publica producto.creado
        |
        v
-stock360.productos.exchange
+stock360.productos.exchange (topic)
        |
-       v
-stock360.productos  ---> ProductoEventConsumer
+       +--> stock360.productos ------> ProductoEventConsumer
+       |       | rechazo
+       |       v
+       |    stock360.productos.dlx (direct) --> stock360.productos.dlq
        |
-       | mensaje inválido tras los reintentos
-       v
-stock360.productos.dlx
+       +--> stock360.inventario -----> consumidor de validación
+       |       | rechazo
+       |       v
+       |    stock360.inventario.dlx (direct) --> stock360.inventario.dlq
        |
-       v
-stock360.productos.dlq  ---> queda disponible para inspección/reenvío
+       +--> stock360.notificaciones -> consumidor de validación
+               | rechazo
+               v
+            stock360.notificaciones.dlx (direct) --> stock360.notificaciones.dlq
 ```
 
 ## 2. Qué se agregó al proyecto
 
 1. **Dependencia AMQP:** `Backend/pom.xml` incluye `spring-boot-starter-amqp`, que integra Spring Boot con RabbitMQ.
 2. **Conexión y reintentos:** `Backend/src/main/resources/application.properties` configura host, puerto, usuario, contraseña, tres intentos con espera exponencial y el rechazo sin reencolar. Las credenciales se pueden sustituir con variables `RABBITMQ_*`.
-3. **Broker local:** `docker-compose.yml` ejecuta RabbitMQ 4 con el plugin Management y expone AMQP en `5672` y la consola en `15672`.
-4. **Topología declarada por código:** `RabbitMqConfig.java` declara automáticamente el exchange `topic`, la cola de productos, su exchange/cola DLQ y ambos bindings.
+3. **Broker:** `docker-compose.yml` ejecuta dos nodos RabbitMQ 4 con Management y almacenamiento persistente. `rabbitmq/rabbitmq.conf` configura el descubrimiento y la formación del clúster.
+4. **Topología declarada por código:** `RabbitMqConfig.java` declara un exchange `topic`, tres colas durables, un exchange `direct` y una DLQ para cada cola, con sus bindings.
 5. **Contrato del evento:** `ProductoCreadoEvent.java` define los datos publicados: identificador y nombre del producto.
 6. **Productor:** `ProductoEventPublisher.java` serializa el evento y lo publica en `stock360.productos.exchange` con la routing key `producto.creado`. `ProductoController.java` lo invoca al crear un producto.
-7. **Consumidor:** `ProductoEventConsumer.java` recibe y valida el JSON. Los eventos válidos se registran como procesados; los inválidos se registran como errores y se rechazan para que RabbitMQ los mande a la DLQ.
+7. **Consumidores:** `ProductoEventConsumer.java` valida el contrato del evento de producto. Las colas de inventario y notificaciones son de demostración: sus listeners validan que el cuerpo sea un objeto JSON no vacío y registran el evento, sin ejecutar lógica de inventario ni enviar notificaciones. Los mensajes inválidos se rechazan hacia su DLQ.
 8. **Gestión administrativa:** `RabbitAdminController.java` y `RabbitResourceService.java` exponen operaciones para crear y eliminar colas, exchanges y bindings. Las rutas requieren el permiso `admin` o el rol `ROLE_ADMIN`; además, bloquean los recursos internos y los reservados por RabbitMQ.
 9. **Pruebas:** las pruebas en `Backend/src/test/java/com/example/Backend/messaging/` verifican productor, consumidor, DLQ/rechazo, configuración y validaciones administrativas. `BackendApplicationTests.java` comprueba además que las rutas de administración exijan autorización.
 
@@ -47,30 +52,52 @@ stock360.productos.dlq  ---> queda disponible para inspección/reenvío
 | Cola de trabajo | `stock360.productos` | — |
 | Exchange DLX `direct` | `stock360.productos.dlx` | `producto.fallido` |
 | Cola de mensajes fallidos | `stock360.productos.dlq` | — |
+| Cola de trabajo | `stock360.inventario` | `inventario.actualizado` |
+| Exchange DLX `direct` | `stock360.inventario.dlx` | `inventario.fallido` |
+| Cola de mensajes fallidos | `stock360.inventario.dlq` | — |
+| Cola de trabajo | `stock360.notificaciones` | `notificacion.solicitada` |
+| Exchange DLX `direct` | `stock360.notificaciones.dlx` | `notificacion.fallida` |
+| Cola de mensajes fallidos | `stock360.notificaciones.dlq` | — |
 
 ## 3. Requisitos previos
 
 - Docker Desktop iniciado.
 - JDK 25 instalado.
 - Para probar la aplicación completa: Node.js y una configuración Auth0 local válida.
-- Puertos locales disponibles: `5672` (AMQP), `15672` (Management), `8080` (backend) y `5173` (Vite).
+- Puertos locales disponibles: `5672` (AMQP), `15672` y `15673` (Management de ambos nodos), `8080` (backend) y `5173` (Vite).
 
 ## 4. Iniciar RabbitMQ
 
 Desde la raíz del repositorio, en PowerShell:
 
+Si otro contenedor ya está usando `5672`, `15672`, `15673` o `8080`, no lo detengas a ciegas. Puedes ejecutar este stack en puertos alternativos:
+
 ```powershell
-docker compose up -d rabbitmq
+$env:RABBITMQ_AMQP_PORT = "25672"
+$env:RABBITMQ_MANAGEMENT_PORT = "25673"
+$env:RABBITMQ2_MANAGEMENT_PORT = "25674"
+$env:BACKEND_PORT = "28080"
+docker compose up -d --build
+```
+
+En ese caso, Management queda en `http://localhost:25673` y `http://localhost:25674`, y el backend en `http://localhost:28080`; actualiza `VITE_API_URL` en `frontend/.env` para apuntar al puerto `28080`. Si los puertos predeterminados están libres, omite las variables y usa la configuración estándar.
+
+```powershell
+docker compose up -d --build
 docker compose ps
 ```
 
-Espera a que `stock360-rabbitmq` muestre estado `healthy`. También puedes revisar el arranque:
+Espera a que `stock360-rabbitmq1`, `stock360-rabbitmq2` y `stock360-backend` estén en ejecución. La primera descarga y compilación puede tardar unos minutos. Comprueba el clúster desde PowerShell:
 
 ```powershell
-docker compose logs --tail 50 rabbitmq
+docker exec stock360-rabbitmq1 rabbitmqctl cluster_status
+docker exec stock360-rabbitmq2 rabbitmqctl cluster_status
+docker compose logs --tail 50 rabbitmq1 rabbitmq2
 ```
 
-Abre [http://localhost:15672](http://localhost:15672) e inicia sesión con `stock360` / `stock360-local` si no has cambiado las variables `RABBITMQ_USERNAME` y `RABBITMQ_PASSWORD`. Son credenciales de desarrollo; no las uses en producción.
+El resultado de `cluster_status` debe enumerar `rabbit@rabbitmq1` y `rabbit@rabbitmq2`. Abre [http://localhost:15672](http://localhost:15672) para el primer nodo y [http://localhost:15673](http://localhost:15673) para el segundo. Las credenciales predeterminadas (`stock360` / `stock360-local`) son solo para desarrollo; no las uses en la nube.
+
+El backend también queda disponible en `http://localhost:8080`. Si prefieres ejecutarlo fuera de Docker para ver los logs, detén el servicio `backend` y sigue la sección 5.
 
 ## 5. Iniciar el backend
 
@@ -83,7 +110,7 @@ Set-Location .\Backend
 .\mvnw.cmd spring-boot:run
 ```
 
-La ruta de `JAVA_HOME` es un ejemplo: ajústala a la ubicación real del JDK 25. Mantén abierta esta terminal para ver los logs. Al arrancar, espera mensajes equivalentes a:
+La ruta de `JAVA_HOME` es un ejemplo: ajústala a la ubicación real del JDK 25. Este paso es opcional si ya ejecutas el backend con Docker Compose. Mantén abierta esta terminal para ver los logs. Al arrancar, espera mensajes equivalentes a:
 
 ```text
 Starting BackendApplication using Java 25
@@ -92,7 +119,7 @@ Created new connection
 Started BackendApplication
 ```
 
-El backend declara las colas, exchanges y bindings en RabbitMQ al iniciar. Verifica con `docker compose ps` o en **Queues and Streams** que aparezcan `stock360.productos` y `stock360.productos.dlq`.
+El backend declara las colas, exchanges y bindings en RabbitMQ al iniciar. En **Queues and Streams** deben aparecer las tres colas de trabajo y las tres DLQ.
 
 ## 6. Probar el consumidor con un evento válido
 
@@ -112,7 +139,7 @@ El backend declara las colas, exchanges y bindings en RabbitMQ al iniciar. Verif
 
 5. En **Queues and Streams**, la cola principal normalmente vuelve a cero mensajes rápidamente: significa que el consumidor recibió el mensaje.
 
-## 7. Probar reintentos, logs y DLQ
+## 7. Probar las tres DLQ
 
 1. En el mismo exchange, publica un mensaje con routing key `producto.creado` y payload inválido:
 
@@ -120,12 +147,12 @@ El backend declara las colas, exchanges y bindings en RabbitMQ al iniciar. Verif
    {json-malformado
    ```
 
-2. Observa la terminal del backend. Aparecerá el error del evento inválido para cada intento; el listener está configurado con un máximo de tres intentos.
-3. Abre **Queues and Streams** y selecciona `stock360.productos.dlq`.
-4. La métrica de mensajes debe aumentar. En **Get messages**, solicita un mensaje para revisar el payload.
-5. No confirmes ni elimines el mensaje si quieres conservarlo para inspección o reenvío.
+2. Abre **Queues and Streams** y selecciona `stock360.productos.dlq`. La métrica de mensajes debe aumentar.
+3. Repite con routing key `inventario.actualizado` y cuerpo `no-es-json`; revisa `stock360.inventario.dlq`.
+4. Repite con routing key `notificacion.solicitada` y cuerpo `no-es-json`; revisa `stock360.notificaciones.dlq`.
+5. En **Get messages**, inspecciona los payloads y no los confirmes ni elimines si deseas conservar evidencia.
 
-La DLQ no tiene un listener automático: los mensajes se quedan allí. Para limpiar una prueba de descarte, usa la acción de purge de la interfaz solo después de confirmar que estás en `stock360.productos.dlq` y que no necesitas conservar sus mensajes.
+Las DLQ no tienen listeners automáticos: los mensajes quedan allí para inspección o reenvío manual.
 
 ## 8. Probar el productor desde Stock360
 
@@ -218,14 +245,14 @@ Las pruebas configuran H2 en memoria; no requieren purgar ni modificar `Backend/
 ## 11. Detener los servicios
 
 - Detén Spring Boot y Vite con `Ctrl+C` en sus terminales.
-- Para detener el broker conservando el contenedor local: `docker compose stop rabbitmq`.
-- `docker compose down` elimina el contenedor y esta configuración no declara un volumen de datos para RabbitMQ; los mensajes de prueba del broker podrían perderse. Al volver a iniciar el backend, la topología declarada por código se crea de nuevo.
+- Para detener los servicios sin borrar sus datos: `docker compose stop`.
+- `docker compose down` elimina los contenedores, pero mantiene los volúmenes nombrados. Para borrar también los datos persistidos solo en un entorno de prueba, ejecuta `docker compose down -v`.
 
 ## 12. Si algo falla
 
-- **No conecta a RabbitMQ:** confirma que el contenedor esté `healthy`, los puertos `5672` y `15672` estén libres, y las variables `RABBITMQ_*` coincidan en Docker y backend.
+- **No conecta a RabbitMQ:** confirma que ambos nodos estén `healthy`, los puertos `5672`, `15672` y `15673` estén libres, y las variables `RABBITMQ_*` coincidan en los servicios.
 - **No aparecen las colas:** confirma en los logs del backend la conexión AMQP y el arranque completo de Spring Boot.
 - **El mensaje válido no llega a la cola principal:** comprueba exchange, routing key exacta `producto.creado`, binding y consumidores.
-- **El mensaje inválido no está en la DLQ:** revisa errores del consumidor y espera que terminen los reintentos; después confirma que la cola principal tenga configurados el DLX `stock360.productos.dlx` y la clave `producto.fallido`.
+- **El mensaje inválido no está en su DLQ:** revisa los logs del backend y el DLX/routing key asociado a la cola que probaste.
 - **Error 401/403 en operaciones administrativas:** usa un JWT para la audiencia correcta que contenga `admin`; `recurso:write` no otorga administración de RabbitMQ.
 - **Java class version incorrecta:** ejecuta `java -version` y `.\mvnw.cmd -version` en la misma terminal; ambos deben usar JDK 25.
