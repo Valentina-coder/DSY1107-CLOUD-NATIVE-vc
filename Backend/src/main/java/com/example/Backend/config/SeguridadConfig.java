@@ -49,6 +49,7 @@ public class SeguridadConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() 
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/admin/rabbitmq/**").hasAnyAuthority("ROLE_ADMIN", "admin", "SCOPE_admin")
+                .requestMatchers("/api/admin/kafka/**").hasAnyAuthority("ROLE_ADMIN", "admin", "SCOPE_admin")
                 .requestMatchers("/api/admin/**").hasAnyAuthority(
                     "SCOPE_recurso:write", "recurso:write",
                     "SCOPE_recurso.write", "recurso.write",

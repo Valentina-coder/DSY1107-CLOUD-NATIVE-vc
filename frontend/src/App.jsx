@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import api, { setAuthToken } from "./services/api";
 import { BannerSeguridad } from "./components/BannerSeguridad";
+import { Icon } from "./components/Icon";
+import { InventoryPanel } from "./components/InventoryPanel";
 import { auth0Config } from "./auth/auth0Config";
 import "./App.css";
 
@@ -10,40 +12,6 @@ const CATEGORIAS_DEFAULT = [
   { id: 2, nombre: "Hogar y Muebles" },
   { id: 3, nombre: "Electrónica" },
 ];
-
-const ICON_PATHS = {
-  box: <><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 8 9 5 9-5" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" /></>,
-  grid: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /></>,
-  tag: <><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" /><circle cx="7.5" cy="7.5" r="1.5" /></>,
-  chart: <><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-5 5" /></>,
-  plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
-  search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
-  refresh: <><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M5.6 9A7 7 0 0 1 18 6l2 1" /><path d="M18.4 15A7 7 0 0 1 6 18l-2-1" /></>,
-  logout: <><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" /></>,
-  edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" /></>,
-  trash: <><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="m19 6-1 14H6L5 6" /><path d="M10 11v5M14 11v5" /></>,
-  arrow: <><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></>,
-  lock: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
-  close: <><path d="m18 6-12 12M6 6l12 12" /></>,
-};
-
-function Icon({ name, size = 18 }) {
-  return (
-    <svg
-      aria-hidden="true"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {ICON_PATHS[name]}
-    </svg>
-  );
-}
 
 export function App() {
   const {
@@ -64,7 +32,12 @@ export function App() {
 
   // Estados de formularios
   const [nuevaCategoria, setNuevaCategoria] = useState("");
-  const [nuevoProducto, setNuevoProducto] = useState({ nombre: "", precio: "", categoriaId: "1" });
+  const [nuevoProducto, setNuevoProducto] = useState({
+    nombre: "",
+    precio: "",
+    stockMinimo: "5",
+    categoriaId: "1",
+  });
 
   // Estado para la edición de producto
   const [productoEditando, setProductoEditando] = useState(null);
@@ -212,8 +185,11 @@ export function App() {
     e.preventDefault();
     const catId = parseInt(nuevoProducto.categoriaId, 10);
     const precio = Number(nuevoProducto.precio);
-    if (!nuevoProducto.nombre.trim() || !Number.isFinite(precio) || precio < 0 || !Number.isInteger(catId)) {
-      setFeedback("Completa el nombre, un precio válido y una categoría.");
+    const stockMinimo = Number(nuevoProducto.stockMinimo);
+    if (!nuevoProducto.nombre.trim() || !Number.isFinite(precio) || precio < 0
+      || !Number.isInteger(catId) || nuevoProducto.stockMinimo === ""
+      || !Number.isInteger(stockMinimo) || stockMinimo < 0) {
+      setFeedback("Completa el nombre, un precio válido, una categoría y un mínimo de stock no negativo.");
       return;
     }
 
@@ -222,6 +198,7 @@ export function App() {
       const payload = {
         nombre: nuevoProducto.nombre,
         precio,
+        stockMinimo,
         categoria: { id: catId }
       };
       const res = await api.post("/api/admin/productos", payload, authConfig);
@@ -230,6 +207,7 @@ export function App() {
       setNuevoProducto({
         nombre: "",
         precio: "",
+        stockMinimo: "5",
         categoriaId: categorias[0]?.id ? String(categorias[0].id) : "1"
       });
       await cargarProductos();
@@ -245,8 +223,11 @@ export function App() {
 
     const catId = parseInt(productoEditando.categoriaId, 10);
     const precio = Number(productoEditando.precio);
-    if (!productoEditando.nombre.trim() || !Number.isFinite(precio) || precio < 0 || !Number.isInteger(catId)) {
-      setFeedback("Completa el nombre, un precio válido y una categoría.");
+    const stockMinimo = Number(productoEditando.stockMinimo);
+    if (!productoEditando.nombre.trim() || !Number.isFinite(precio) || precio < 0
+      || !Number.isInteger(catId) || productoEditando.stockMinimo === ""
+      || !Number.isInteger(stockMinimo) || stockMinimo < 0) {
+      setFeedback("Completa el nombre, un precio válido, una categoría y un mínimo de stock no negativo.");
       return;
     }
     try {
@@ -254,6 +235,7 @@ export function App() {
       const payload = {
         nombre: productoEditando.nombre,
         precio,
+        stockMinimo,
         categoria: { id: catId }
       };
       const res = await api.put(`/api/admin/productos/${productoEditando.id}`, payload, authConfig);
@@ -263,6 +245,29 @@ export function App() {
       await cargarProductos();
     } catch (err) {
       registrarError("actualizar el producto", err);
+    }
+  };
+
+  const publicarActualizacionStock = async (productoId, stockValue) => {
+    const stock = Number(stockValue);
+    if (stockValue === "" || !Number.isInteger(stock) || stock < 0) {
+      setFeedback("El stock nuevo debe ser un número entero no negativo.");
+      return false;
+    }
+
+    try {
+      const authConfig = await getTokenHeaders();
+      const res = await api.post(
+        "/api/admin/events/inventory",
+        { productoId, stock },
+        authConfig
+      );
+      setLastStatus(res.status);
+      setFeedback("Evento Kafka aceptado. Espera unos segundos y actualiza los datos para confirmar el nuevo stock.");
+      return true;
+    } catch (err) {
+      registrarError("enviar la actualización de stock por Kafka", err);
+      return false;
     }
   };
 
@@ -287,6 +292,7 @@ export function App() {
       id: prod.id,
       nombre: prod.nombre,
       precio: prod.precio,
+      stockMinimo: String(prod.stockMinimo ?? 5),
       categoriaId: prod.categoria?.id ? String(prod.categoria.id) : "1"
     });
   };
@@ -430,70 +436,23 @@ export function App() {
           </section>
 
           <section className="workspace-grid">
-            <div className="panel inventory-panel" id="inventario">
-              <div className="panel-heading inventory-heading">
-                <div><div className="section-kicker">CATÁLOGO</div><h2>Inventario de productos</h2><p>Busca, revisa y administra tus productos.</p></div>
-                <div className="inventory-actions">
-                  <button className="button button-outline" onClick={cargarProductos}><Icon name="refresh" size={16} /> Cargar productos</button>
-                </div>
-              </div>
-
-              <div className="table-toolbar">
-                <label className="search-box">
-                  <Icon name="search" size={17} />
-                  <input aria-label="Buscar productos" placeholder="Buscar producto..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
-                </label>
-                <label className="filter-select">
-                  <span className="sr-only">Filtrar por categoría</span>
-                  <select value={categoriaFiltro} onChange={(e) => setCategoriaFiltro(e.target.value)}>
-                    <option value="todas">Todas las categorías</option>
-                    {categorias.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}
-                  </select>
-                </label>
-              </div>
-
-              {productoEditando && (
-                <div className="edit-panel">
-                  <div className="edit-heading"><div><div className="section-kicker">EDICIÓN</div><h3>Editar producto #{productoEditando.id}</h3></div><button type="button" className="icon-button" onClick={() => setProductoEditando(null)} aria-label="Cancelar edición"><Icon name="close" /></button></div>
-                  <form className="edit-form" onSubmit={actualizarProducto}>
-                    <label>Nombre<input value={productoEditando.nombre} onChange={(e) => setProductoEditando({ ...productoEditando, nombre: e.target.value })} required /></label>
-                    <label>Precio<input type="number" min="0" step="0.01" value={productoEditando.precio} onChange={(e) => setProductoEditando({ ...productoEditando, precio: e.target.value })} required /></label>
-                    <label>Categoría<select value={productoEditando.categoriaId} onChange={(e) => setProductoEditando({ ...productoEditando, categoriaId: e.target.value })}>{categorias.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}</select></label>
-                    <button className="button button-primary" type="submit">Guardar cambios</button>
-                  </form>
-                </div>
-              )}
-
-              <div className="inventory-table-wrap">
-                {productosFiltrados.length === 0 ? (
-                  <div className="empty-state">
-                    <span className="empty-icon"><Icon name="box" size={26} /></span>
-                    <h3>{productos.length === 0 ? "Tu inventario está listo para empezar" : "No encontramos productos"}</h3>
-                    <p>{productos.length === 0 ? "Carga los productos para verlos aquí, o agrega uno nuevo desde el panel lateral." : "Prueba con otra búsqueda o categoría."}</p>
-                    {productos.length === 0 && <button className="button button-outline" onClick={cargarProductos}><Icon name="refresh" size={16} /> Cargar inventario</button>}
-                    {(busqueda || categoriaFiltro !== "todas") && <button className="clear-filter" onClick={() => { setBusqueda(""); setCategoriaFiltro("todas"); }}>Limpiar filtros</button>}
-                  </div>
-                ) : (
-                  <table className="inventory-table">
-                    <thead><tr><th>PRODUCTO</th><th>CATEGORÍA</th><th>PRECIO</th>{isAuthenticated && <th className="actions-column">ACCIONES</th>}</tr></thead>
-                    <tbody>
-                      {productosFiltrados.map((producto, index) => (
-                        <tr key={producto.id}>
-                          <td><div className="product-cell"><span className={`product-thumb product-thumb-${index % 4}`}><Icon name="box" size={18} /></span><span><strong>{producto.nombre}</strong><small>SKU-{String(producto.id).padStart(4, "0")}</small></span></div></td>
-                          <td><span className="category-badge">{producto.categoria?.nombre || "Sin categoría"}</span></td>
-                          <td className="price-cell">{Number(producto.precio).toLocaleString("es-CL", { style: "currency", currency: "CLP" })}</td>
-                          {isAuthenticated && <td><div className="row-actions">
-                            <button className="row-action edit-action" onClick={() => prepararEdicion(producto)} aria-label={`Editar ${producto.nombre}`} title="Editar"><Icon name="edit" size={16} /></button>
-                            <button className="row-action delete-action" onClick={() => eliminarProducto(producto.id)} aria-label={`Eliminar ${producto.nombre}`} title="Eliminar"><Icon name="trash" size={16} /></button>
-                          </div></td>}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              {productos.length > 0 && <div className="table-footer"><span>Mostrando <strong>{productosFiltrados.length}</strong> de <strong>{productos.length}</strong> productos</span><span className="secure-note"><Icon name="lock" size={13} /> Conexión segura</span></div>}
-            </div>
+            <InventoryPanel
+              productos={productos}
+              productosFiltrados={productosFiltrados}
+              categorias={categorias}
+              isAuthenticated={isAuthenticated}
+              busqueda={busqueda}
+              setBusqueda={setBusqueda}
+              categoriaFiltro={categoriaFiltro}
+              setCategoriaFiltro={setCategoriaFiltro}
+              cargarProductos={cargarProductos}
+              productoEditando={productoEditando}
+              setProductoEditando={setProductoEditando}
+              actualizarProducto={actualizarProducto}
+              publicarActualizacionStock={publicarActualizacionStock}
+              prepararEdicion={prepararEdicion}
+              eliminarProducto={eliminarProducto}
+            />
 
             <aside className="side-column">
               <section className="create-card">
@@ -507,6 +466,8 @@ export function App() {
                     <input id="product-name" placeholder="Ej. Lámpara de escritorio" value={nuevoProducto.nombre} onChange={(e) => setNuevoProducto({ ...nuevoProducto, nombre: e.target.value })} required />
                     <label htmlFor="product-price">Precio</label>
                     <div className="price-input"><span>$</span><input id="product-price" type="number" min="0" step="0.01" placeholder="0" value={nuevoProducto.precio} onChange={(e) => setNuevoProducto({ ...nuevoProducto, precio: e.target.value })} required /></div>
+                    <label htmlFor="product-stock-minimum">Stock mínimo</label>
+                    <input id="product-stock-minimum" type="number" min="0" step="1" value={nuevoProducto.stockMinimo} onChange={(e) => setNuevoProducto({ ...nuevoProducto, stockMinimo: e.target.value })} required />
                     <label htmlFor="product-category">Categoría</label>
                     <select id="product-category" value={nuevoProducto.categoriaId} onChange={(e) => setNuevoProducto({ ...nuevoProducto, categoriaId: e.target.value })} required>
                       <option value="">Seleccione una categoría</option>

@@ -121,7 +121,13 @@ public class RabbitResourceService {
         return name.equals(RabbitTopology.PRODUCT_QUEUE)
                 || name.equals(RabbitTopology.PRODUCT_EXCHANGE)
                 || name.equals(RabbitTopology.DEAD_LETTER_QUEUE)
-                || name.equals(RabbitTopology.DEAD_LETTER_EXCHANGE);
+                || name.equals(RabbitTopology.DEAD_LETTER_EXCHANGE)
+                || name.equals(RabbitTopology.INVENTORY_QUEUE)
+                || name.equals(RabbitTopology.INVENTORY_DEAD_LETTER_QUEUE)
+                || name.equals(RabbitTopology.INVENTORY_DEAD_LETTER_EXCHANGE)
+                || name.equals(RabbitTopology.NOTIFICATION_QUEUE)
+                || name.equals(RabbitTopology.NOTIFICATION_DEAD_LETTER_QUEUE)
+                || name.equals(RabbitTopology.NOTIFICATION_DEAD_LETTER_EXCHANGE);
     }
 
     public enum ExchangeType {

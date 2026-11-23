@@ -15,9 +15,16 @@ public class ProductoEventConsumer {
     private static final Logger logger = LoggerFactory.getLogger(ProductoEventConsumer.class);
 
     private final ObjectMapper objectMapper;
+    private final InventoryEventHandler inventoryEventHandler;
+    private final NotificationRequestHandler notificationRequestHandler;
 
-    public ProductoEventConsumer(ObjectMapper objectMapper) {
+    public ProductoEventConsumer(
+            ObjectMapper objectMapper,
+            InventoryEventHandler inventoryEventHandler,
+            NotificationRequestHandler notificationRequestHandler) {
         this.objectMapper = objectMapper;
+        this.inventoryEventHandler = inventoryEventHandler;
+        this.notificationRequestHandler = notificationRequestHandler;
     }
 
     @RabbitListener(queues = RabbitTopology.PRODUCT_QUEUE)
@@ -31,7 +38,8 @@ public class ProductoEventConsumer {
             throw new AmqpRejectAndDontRequeueException("Evento de producto inválido", exception);
         }
 
-        if (event.productoId() == null || event.nombre() == null || event.nombre().isBlank()) {
+        if (event == null || event.productoId() == null
+                || event.nombre() == null || event.nombre().isBlank()) {
             logger.error("Evento incompleto; se rechazará hacia la DLQ. payload={}", limitarPayload(payload));
             throw new AmqpRejectAndDontRequeueException("El evento de producto no contiene los datos requeridos");
         }
@@ -42,27 +50,26 @@ public class ProductoEventConsumer {
 
     @RabbitListener(queues = RabbitTopology.INVENTORY_QUEUE)
     public void consumirEventoInventario(String payload) {
-        validarEventoOperativo(payload, "inventario");
+        try {
+            inventoryEventHandler.actualizarStock(
+                    objectMapper.readValue(payload, InventoryUpdatedEvent.class));
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            logger.error("Evento de inventario inválido; se rechazará hacia su DLQ. payload={}",
+                    limitarPayload(payload), exception);
+            throw new AmqpRejectAndDontRequeueException(
+                    "Evento de inventario inválido: " + exception.getMessage(), exception);
+        }
     }
 
     @RabbitListener(queues = RabbitTopology.NOTIFICATION_QUEUE)
     public void consumirEventoNotificacion(String payload) {
-        validarEventoOperativo(payload, "notificaciones");
-    }
-
-    private void validarEventoOperativo(String payload, String tipo) {
         try {
-            JsonNode event = objectMapper.readTree(payload);
-            if (event == null || !event.isObject() || event.isEmpty()) {
-                throw new AmqpRejectAndDontRequeueException(
-                        "El evento de " + tipo + " debe ser un objeto JSON no vacío");
-            }
-            logger.info("Evento de {} validado: {}", tipo, limitarPayload(payload));
-        } catch (JsonProcessingException exception) {
-            logger.error("Evento de {} inválido; se rechazará hacia su DLQ. payload={}",
-                    tipo, limitarPayload(payload), exception);
+            notificationRequestHandler.registrar(payload);
+        } catch (IllegalArgumentException exception) {
+            logger.error("Solicitud de notificación inválida; se rechazará hacia su DLQ. payload={}",
+                    limitarPayload(payload), exception);
             throw new AmqpRejectAndDontRequeueException(
-                    "Evento de " + tipo + " inválido", exception);
+                    "Solicitud de notificación inválida: " + exception.getMessage(), exception);
         }
     }
 

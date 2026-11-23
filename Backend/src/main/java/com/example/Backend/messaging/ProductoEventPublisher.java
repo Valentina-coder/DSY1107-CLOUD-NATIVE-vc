@@ -22,16 +22,17 @@ public class ProductoEventPublisher {
     }
 
     public void publicarProductoCreado(Producto producto) {
+        publicar(RabbitTopology.PRODUCT_EXCHANGE, RabbitTopology.PRODUCT_ROUTING_KEY,
+                new ProductoCreadoEvent(producto.getId(), producto.getNombre()));
+        logger.info("Evento de producto publicado: productoId={}", producto.getId());
+    }
+
+    private void publicar(String exchange, String routingKey, Object event) {
         try {
-            String payload = objectMapper.writeValueAsString(
-                    new ProductoCreadoEvent(producto.getId(), producto.getNombre()));
-            rabbitTemplate.convertAndSend(
-                    RabbitTopology.PRODUCT_EXCHANGE,
-                    RabbitTopology.PRODUCT_ROUTING_KEY,
-                    payload);
-            logger.info("Evento de producto publicado: productoId={}", producto.getId());
+            String payload = objectMapper.writeValueAsString(event);
+            rabbitTemplate.convertAndSend(exchange, routingKey, payload);
         } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("No se pudo serializar el evento de producto", exception);
+            throw new IllegalStateException("No se pudo serializar el evento de mensajería", exception);
         }
     }
 }

@@ -2,6 +2,7 @@ package com.example.Backend.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
 import com.example.Backend.model.Categoria;
@@ -11,6 +12,7 @@ import com.example.Backend.repository.ProductoRepository;
 import com.example.Backend.messaging.ProductoEventPublisher;
 
 import java.util.List;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api")
@@ -36,59 +38,48 @@ public class ProductoController {
     }
 
     @PostMapping("/admin/productos")
-    public ResponseEntity<?> crearProducto(@RequestBody Producto producto) {
-        try {
-            // Buscamos la categoría real en la base de datos antes de guardar
-            if (producto.getCategoria() != null && producto.getCategoria().getId() != null) {
-                Categoria cat = categoriaRepository.findById(producto.getCategoria().getId())
-                        .orElseThrow(() -> new RuntimeException("La categoría especificada no existe en la BD"));
-                producto.setCategoria(cat);
-            }
-
-            Producto nuevo = productoRepository.save(producto);
-            productoEventPublisher.publicarProductoCreado(nuevo);
-            return new ResponseEntity<>(nuevo, HttpStatus.CREATED);
-        } catch (Exception e) {
-            e.printStackTrace(); // Imprime la falla exacta en la consola de Java
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error al guardar producto: " + e.getMessage());
+    public ResponseEntity<Producto> crearProducto(@Valid @RequestBody Producto producto) {
+        if (producto.getCategoria() != null && producto.getCategoria().getId() != null) {
+            Categoria categoria = categoriaRepository.findById(producto.getCategoria().getId())
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST, "La categoría especificada no existe"));
+            producto.setCategoria(categoria);
         }
+
+        producto.setStockMinimo(producto.getStockMinimo());
+        Producto nuevo = productoRepository.save(producto);
+        productoEventPublisher.publicarProductoCreado(nuevo);
+        return ResponseEntity.status(HttpStatus.CREATED).body(nuevo);
     }
 
     @PutMapping("/admin/productos/{id}")
-    public ResponseEntity<?> actualizarProducto(@PathVariable Long id, @RequestBody Producto detalles) {
-        try {
-            return productoRepository.findById(id).map(prod -> {
-                prod.setNombre(detalles.getNombre());
-                prod.setPrecio(detalles.getPrecio());
-
-                if (detalles.getCategoria() != null && detalles.getCategoria().getId() != null) {
-                    Categoria cat = categoriaRepository.findById(detalles.getCategoria().getId()).orElse(null);
-                    if (cat != null) prod.setCategoria(cat);
-                }
-
-                Producto actualizado = productoRepository.save(prod);
-                return ResponseEntity.ok(actualizado);
-            }).orElse(ResponseEntity.notFound().build());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error al actualizar: " + e.getMessage());
+    public ResponseEntity<Producto> actualizarProducto(
+            @PathVariable Long id,
+            @Valid @RequestBody Producto detalles) {
+        Producto producto = productoRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
+        producto.setNombre(detalles.getNombre());
+        producto.setPrecio(detalles.getPrecio());
+        if (detalles.isStockMinimoSpecified()) {
+            producto.setStockMinimo(detalles.getStockMinimo());
         }
+
+        if (detalles.getCategoria() != null && detalles.getCategoria().getId() != null) {
+            Categoria categoria = categoriaRepository.findById(detalles.getCategoria().getId())
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST, "La categoría especificada no existe"));
+            producto.setCategoria(categoria);
+        }
+
+        return ResponseEntity.ok(productoRepository.save(producto));
     }
 
     @DeleteMapping("/admin/productos/{id}")
-    public ResponseEntity<?> eliminarProducto(@PathVariable Long id) {
-        try {
-            if (!productoRepository.existsById(id)) {
-                return ResponseEntity.notFound().build();
-            }
-            productoRepository.deleteById(id);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error al eliminar: " + e.getMessage());
+    public ResponseEntity<Void> eliminarProducto(@PathVariable Long id) {
+        if (!productoRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado");
         }
+        productoRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

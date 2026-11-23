@@ -913,8 +913,66 @@
   font-weight: 690;
 }
 
+.stock-cell {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+}
+
+.stock-cell strong {
+  color: #303348;
+  font-size: 13px;
+}
+
+.stock-cell > span:not(.stock-status) {
+  color: #8b8fa2;
+  font-size: 9px;
+}
+
+.stock-status {
+  padding: 3px 7px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.stock-status-critical {
+  color: #b94452;
+  background: #fff0f1;
+}
+
+.stock-status-normal {
+  color: #26815f;
+  background: #e8f7f0;
+}
+
 .actions-column {
   text-align: center;
+}
+
+.inventory-row-controls {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.stock-update-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.stock-update-form input {
+  width: 65px;
+  height: 31px;
+  padding: 0 7px;
+}
+
+.stock-update-form .button {
+  min-height: 31px;
+  padding: 0 8px;
+  font-size: 9px;
 }
 
 .row-actions {
@@ -1042,7 +1100,7 @@
 
 .edit-form {
   display: grid;
-  grid-template-columns: 1.3fr 0.8fr 1fr auto;
+  grid-template-columns: 1.3fr 0.8fr 0.8fr 1fr auto;
   align-items: end;
   gap: 10px;
   margin-top: 12px;

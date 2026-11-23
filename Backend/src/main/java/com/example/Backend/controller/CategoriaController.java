@@ -26,14 +26,8 @@ public class CategoriaController {
     }
 
     @PostMapping("/admin/categorias")
-    public ResponseEntity<?> crearCategoria(@RequestBody Categoria categoria) {
-        try {
-            Categoria nueva = categoriaRepository.save(categoria);
-            return new ResponseEntity<>(nueva, HttpStatus.CREATED);
-        } catch (Exception e) {
-            e.printStackTrace(); // Imprime la falla exacta en la consola de Java
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error al guardar categoría: " + e.getMessage());
-        }
+    public ResponseEntity<Categoria> crearCategoria(@RequestBody Categoria categoria) {
+        Categoria nueva = categoriaRepository.save(categoria);
+        return new ResponseEntity<>(nueva, HttpStatus.CREATED);
     }
 }

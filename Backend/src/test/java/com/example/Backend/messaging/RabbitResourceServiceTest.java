@@ -67,6 +67,17 @@ class RabbitResourceServiceTest {
     }
 
     @Test
+    void doesNotAllowDeletingInventoryOrNotificationResources() {
+        assertThatThrownBy(() -> resourceService.eliminarCola(RabbitTopology.INVENTORY_QUEUE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("recurso reservado");
+        assertThatThrownBy(() -> resourceService.eliminarExchange(RabbitTopology.NOTIFICATION_DEAD_LETTER_EXCHANGE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("recurso reservado");
+        verifyNoInteractions(amqpAdmin);
+    }
+
+    @Test
     void declaresExchangeWithRequestedTypeAndDurability() {
         ExchangeRequest request = new ExchangeRequest("stock360.test.topic", ExchangeType.TOPIC, true, false);
 
